@@ -1,25 +1,29 @@
 // backend/src/services/ingestion.service.js
-const openai = require('../config/openai');
+const gemini = require('../config/gemini');
 const extractText = require('../utils/extractText');
 const chunkText = require('../utils/chunkText');
 const Document = require('../models/mongo/Document.model');
 const { insertChunk, deleteChunksByDocumentId } = require('../models/postgres/documentChunk.model');
 
-const EMBEDDING_MODEL = 'text-embedding-3-small';
-const BATCH_SIZE = 20; // embed 20 chunks per OpenAI call
+const EMBEDDING_MODEL = 'gemini-embedding-001';
+const BATCH_SIZE = 20; // embed 20 chunks per call
 
 /**
  * Embed an array of text strings in batches
  */
 const embedBatch = async (texts) => {
+  const model = gemini.getGenerativeModel({ model: EMBEDDING_MODEL });
   const embeddings = [];
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: batch
+    const response = await model.batchEmbedContents({
+      requests: batch.map((t) => ({
+        content: { parts: [{ text: t }] },
+        model: `models/${EMBEDDING_MODEL}`,
+        outputDimensionality: 768
+      }))
     });
-    embeddings.push(...response.data.map((d) => d.embedding));
+    embeddings.push(...response.embeddings.map((e) => e.values));
   }
   return embeddings;
 };

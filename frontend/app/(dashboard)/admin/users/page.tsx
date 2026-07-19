@@ -3,10 +3,12 @@ import { useEffect, useState, Fragment } from 'react';
 import { Plus, Trash2, RefreshCw, Loader2, Search } from 'lucide-react';
 import api from '@/lib/api';
 import { User } from '@/types';
+import { useAuthStore } from '@/lib/store';
 
 const ROLES = ['admin', 'editor', 'viewer'] as const;
 
 export default function UsersPage() {
+  const currentUser = useAuthStore((s) => s.user);
   const [users, setUsers]       = useState<User[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -86,26 +88,35 @@ export default function UsersPage() {
               </td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={4} className="td text-center py-12 text-slate-500">No users found</td></tr>
-            ) : filtered.map(u => (
-              <tr key={u.id} className="table-row">
-                <td className="td font-medium text-white">{u.email}</td>
-                <td className="td">
-                  <select
-                    value={u.role}
-                    onChange={e => changeRole(u.id, e.target.value as User['role'])}
-                    className="bg-[#151d35] border border-slate-700 text-slate-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-500"
-                  >
-                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </td>
-                <td className="td text-slate-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-                <td className="td">
-                  <button onClick={() => deleteUser(u.id)} className="btn-danger flex items-center gap-1">
-                    <Trash2 className="w-3 h-3" /> Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+            ) : filtered.map(u => {
+              const isSelf = currentUser?.id === u.id || currentUser?.email === u.email;
+              return (
+                <tr key={u.id} className="table-row">
+                  <td className="td font-medium text-white">{u.email}</td>
+                  <td className="td">
+                    <select
+                      value={u.role}
+                      onChange={e => changeRole(u.id, e.target.value as User['role'])}
+                      disabled={isSelf}
+                      title={isSelf ? "You cannot change your own role" : ""}
+                      className={`bg-[#151d35] border border-slate-700 text-slate-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-500 ${isSelf ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </td>
+                  <td className="td text-slate-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td className="td">
+                    {isSelf ? (
+                      <span className="text-xs text-slate-500 font-medium italic">Current User</span>
+                    ) : (
+                      <button onClick={() => deleteUser(u.id)} className="btn-danger flex items-center gap-1">
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,6 +1,7 @@
 // backend/src/controllers/audit.controller.js
 const AuditLog = require('../models/mongo/AuditLog.model');
 const Document = require('../models/mongo/Document.model');
+const pool = require('../config/db.postgres');
 const { successResponse } = require('../utils/apiResponse');
 
 // GET /api/audit — Admin only, with optional filters
@@ -59,10 +60,20 @@ const getStats = async (req, res, next) => {
     const statusMap = {};
     docsByStatus.forEach((s) => { statusMap[s._id] = s.count; });
 
+    // Filter active users to make sure they exist in the PostgreSQL users table
+    let activeUsersCount = 0;
+    if (activeUsersResult.length > 0) {
+      const { rows } = await pool.query(
+        `SELECT COUNT(DISTINCT email) as count FROM users WHERE email = ANY($1)`,
+        [activeUsersResult]
+      );
+      activeUsersCount = parseInt(rows[0].count, 10);
+    }
+
     return successResponse(res, 'Stats retrieved successfully', {
       totalDocuments,
       totalQueries,
-      activeUsers: activeUsersResult.length,
+      activeUsers: activeUsersCount,
       documentsByStatus: statusMap,
       documentsBySpace: docsBySpace,
       recentActivity: recentLogs

@@ -1,5 +1,5 @@
 // backend/src/utils/extractText.js
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 
 /**
@@ -10,8 +10,10 @@ const mammoth = require('mammoth');
  */
 const extractText = async (buffer, mimeType) => {
   if (mimeType === 'application/pdf') {
-    const data = await pdfParse(buffer);
-    return data.text;
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    return result.text;
   }
 
   if (

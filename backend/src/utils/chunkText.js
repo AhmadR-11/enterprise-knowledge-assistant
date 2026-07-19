@@ -1,7 +1,7 @@
 // backend/src/utils/chunkText.js
 
-const CHUNK_SIZE = 1800;   // characters (~450 tokens)
-const CHUNK_OVERLAP = 200; // characters overlap between chunks
+const CHUNK_SIZE = 1000;   // characters (~450 tokens)
+const CHUNK_OVERLAP = 150; // characters overlap between chunks
 
 /**
  * Split text into overlapping chunks
@@ -40,8 +40,8 @@ const chunkText = (text) => {
       chunks.push({ content, chunkIndex: index++ });
     }
 
+    if (end >= normalized.length) break;
     start = end - CHUNK_OVERLAP;
-    if (start >= normalized.length) break;
   }
 
   return chunks;
