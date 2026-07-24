@@ -12,10 +12,14 @@
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
+    "framer-motion": "^12.42.2",
     "lucide-react": "^0.400.0",
     "next": "^15.5.20",
     "react": "^18",
     "react-dom": "^18",
+    "recharts": "^3.10.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
