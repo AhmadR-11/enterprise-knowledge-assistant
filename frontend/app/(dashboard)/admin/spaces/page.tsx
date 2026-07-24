@@ -88,13 +88,14 @@ export default function SpacesPage() {
     if (!selectedUser || !assignModal) return;
     const toastId = toast.loading('Adding member to space...');
     try {
-      await api.post('/spaces/assign', { userId: selectedUser, spaceId: assignModal.id });
+      await api.post('/spaces/assign', { userId: Number(selectedUser), spaceId: assignModal.id });
       toast.success('Member added to space', { id: toastId });
       const r = await api.get(`/spaces/${assignModal.id}/users`);
       setSpaceUsers(r.data.data.users);
       setSelectedUser('');
-    } catch {
-      toast.error('Failed to add member', { id: toastId });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Failed to add member', { id: toastId });
     }
   };
 

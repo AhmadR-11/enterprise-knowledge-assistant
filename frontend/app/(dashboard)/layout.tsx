@@ -9,14 +9,15 @@ import {
   PanelLeftClose, PanelLeftOpen, AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
+import FloatingChatWidget from '@/components/FloatingChatWidget';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 
 const navItems = [
   { href: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/documents',        icon: FileText,        label: 'Documents' },
   { href: '/admin/users',      icon: Users,           label: 'Users',      adminOnly: true },
   { href: '/admin/spaces',     icon: Building2,       label: 'Spaces',     adminOnly: true },
-  { href: '/documents',        icon: FileText,        label: 'Documents' },
   { href: '/admin/audit-logs', icon: ScrollText,  label: 'Audit Logs', adminOnly: true },
 ];
 
@@ -30,8 +31,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => { hydrate(); }, [hydrate]);
 
   useEffect(() => {
-    if (isHydrated && !user) router.push('/login');
-  }, [isHydrated, user, router]);
+    if (isHydrated) {
+      if (!user) {
+        router.push('/login');
+      } else if (pathname.startsWith('/admin') && user.role !== 'admin') {
+        toast.error('Access Denied: Admin privileges required');
+        router.push('/dashboard');
+      }
+    }
+  }, [isHydrated, user, pathname, router]);
 
   if (!isHydrated || !user) return null;
 
@@ -171,6 +179,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Global Floating AI Chat Widget */}
+      <FloatingChatWidget />
 
       {/* Sign Out Warning Confirmation Modal */}
       <AnimatePresence>

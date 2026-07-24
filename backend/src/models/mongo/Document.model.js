@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 
 const DocumentSchema = new mongoose.Schema({
   originalName: { type: String, required: true },
+  title:        { type: String }, // User customizable display title (FR-2.3)
+  description:  { type: String, default: '' },
+  tags:         [{ type: String }],
   mimeType:     { type: String, required: true },
   spaceId:      { type: Number, required: true, index: true },
   uploadedBy:   { type: Number, required: true },  // PostgreSQL user id

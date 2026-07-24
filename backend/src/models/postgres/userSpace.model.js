@@ -5,7 +5,7 @@ const assignUserToSpace = async (userId, spaceId) => {
   const query = `
     INSERT INTO user_spaces (user_id, space_id)
     VALUES ($1, $2)
-    ON CONFLICT DO NOTHING
+    ON CONFLICT (user_id, space_id) DO NOTHING
     RETURNING user_id, space_id
   `;
   const { rows } = await pool.query(query, [userId, spaceId]);
@@ -45,9 +45,20 @@ const listUsersInSpace = async (spaceId) => {
   return rows;
 };
 
+const listSpacesForUser = async (userId) => {
+  const query = `
+    SELECT space_id
+    FROM user_spaces
+    WHERE user_id = $1
+  `;
+  const { rows } = await pool.query(query, [userId]);
+  return rows.map((r) => r.space_id);
+};
+
 module.exports = {
   assignUserToSpace,
   removeUserFromSpace,
   checkSpaceMembership,
-  listUsersInSpace
+  listUsersInSpace,
+  listSpacesForUser
 };

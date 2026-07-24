@@ -7,6 +7,7 @@ const spaceRoutes    = require('./routes/space.routes');
 const auditRoutes    = require('./routes/audit.routes');
 const userRoutes     = require('./routes/user.routes');
 const documentRoutes = require('./routes/document.routes');
+const chatRoutes     = require('./routes/chat.routes');
 const errorHandler   = require('./middleware/errorHandler.middleware');
 
 const app = express();
@@ -30,6 +31,7 @@ app.use('/api/spaces',    spaceRoutes);
 app.use('/api/audit',     auditRoutes);
 app.use('/api/users',     userRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/chat',      chatRoutes);
 
 // Global error handler — must be last
 app.use(errorHandler);

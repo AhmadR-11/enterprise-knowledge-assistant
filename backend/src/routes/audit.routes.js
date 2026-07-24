@@ -9,7 +9,7 @@ const router = express.Router();
 // GET /api/audit — filterable by email, action, startDate, endDate (Admin only)
 router.get('/', protect, requireRoles('admin'), getLogs);
 
-// GET /api/stats — system-wide usage stats (Admin only — FR-1.8)
-router.get('/stats', protect, requireRoles('admin'), getStats);
+// GET /api/stats — system-wide usage stats (all authenticated users)
+router.get('/stats', protect, getStats);
 
 module.exports = router;

@@ -2,6 +2,7 @@
 const AuditLog = require('../models/mongo/AuditLog.model');
 const Document = require('../models/mongo/Document.model');
 const pool = require('../config/db.postgres');
+const { listSpacesForUser } = require('../models/postgres/userSpace.model');
 const { successResponse } = require('../utils/apiResponse');
 
 // GET /api/audit — Admin only, with optional filters
@@ -32,10 +33,19 @@ const getLogs = async (req, res, next) => {
   } catch (err) { return next(err); }
 };
 
-// GET /api/stats — Admin only
+// GET /api/stats — Admin gets system-wide stats; Editors/Viewers get stats for their assigned space(s)
 const getStats = async (req, res, next) => {
   try {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    let docFilter = {};
+    let auditFilter = {};
+
+    if (req.user.role !== 'admin') {
+      const userSpaceIds = await listSpacesForUser(req.user.id);
+      docFilter = { spaceId: { $in: userSpaceIds } };
+      auditFilter = { email: req.user.email };
+    }
 
     const [
       totalDocuments,
@@ -44,15 +54,19 @@ const getStats = async (req, res, next) => {
       docsByStatus,
       recentLogs
     ] = await Promise.all([
-      Document.countDocuments(),
-      AuditLog.countDocuments({ action: 'CHAT_QUERY' }),
-      AuditLog.distinct('email', { timestamp: { $gte: thirtyDaysAgo } }),
-      Document.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      AuditLog.find().sort({ timestamp: -1 }).limit(5)
+      Document.countDocuments(docFilter),
+      AuditLog.countDocuments({ ...auditFilter, action: 'CHAT_QUERY' }),
+      AuditLog.distinct('email', { ...auditFilter, timestamp: { $gte: thirtyDaysAgo } }),
+      Document.aggregate([
+        { $match: docFilter },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      AuditLog.find(auditFilter).sort({ timestamp: -1 }).limit(5)
     ]);
 
     // docs grouped by space
     const docsBySpace = await Document.aggregate([
+      { $match: docFilter },
       { $group: { _id: '$spaceId', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
@@ -60,9 +74,8 @@ const getStats = async (req, res, next) => {
     const statusMap = {};
     docsByStatus.forEach((s) => { statusMap[s._id] = s.count; });
 
-    // Filter active users to make sure they exist in the PostgreSQL users table
-    let activeUsersCount = 0;
-    if (activeUsersResult.length > 0) {
+    let activeUsersCount = activeUsersResult.length;
+    if (req.user.role === 'admin' && activeUsersResult.length > 0) {
       const { rows } = await pool.query(
         `SELECT COUNT(DISTINCT email) as count FROM users WHERE email = ANY($1)`,
         [activeUsersResult]

@@ -85,7 +85,7 @@ const register = async (req, res, next) => {
  * POST /api/auth/login
  */
 const login = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   if (!email || !password) {
     return errorResponse(res, 'Email and password are required', 400);
@@ -100,6 +100,18 @@ const login = async (req, res, next) => {
       // Log login failure
       await logAuthAttempt('AUTH_LOGIN_FAILURE', normalizedEmail, req, { reason: 'User email not found' });
       return errorResponse(res, 'Invalid email or password', 401);
+    }
+
+    // Optional role verification if passed from login toggle
+    if (role && role.trim().toLowerCase() !== user.role) {
+      await logAuthAttempt('AUTH_LOGIN_FAILURE', normalizedEmail, req, {
+        reason: `Role mismatch: selected ${role}, actual ${user.role}`
+      });
+      return errorResponse(
+        res,
+        `Account role mismatch. This account is registered as "${user.role.toUpperCase()}", not "${role.toUpperCase()}".`,
+        401
+      );
     }
 
     // Compare bcrypt hashes

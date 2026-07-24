@@ -15,6 +15,9 @@ export interface Space {
 export interface Document {
   _id: string;
   originalName: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
   mimeType: string;
   spaceId: number;
   uploadedBy: number;
