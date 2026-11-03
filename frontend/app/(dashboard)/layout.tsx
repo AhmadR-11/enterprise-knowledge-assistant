@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Building2, FileText,
   ScrollText, LogOut, Brain, ChevronRight,
-  PanelLeftClose, PanelLeftOpen, AlertTriangle
+  PanelLeftClose, PanelLeftOpen, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import FloatingChatWidget from '@/components/FloatingChatWidget';
@@ -15,10 +15,11 @@ import clsx from 'clsx';
 
 const navItems = [
   { href: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/chat',             icon: MessageSquare,   label: 'Chat' },
   { href: '/documents',        icon: FileText,        label: 'Documents' },
   { href: '/admin/users',      icon: Users,           label: 'Users',      adminOnly: true },
   { href: '/admin/spaces',     icon: Building2,       label: 'Spaces',     adminOnly: true },
-  { href: '/admin/audit-logs', icon: ScrollText,  label: 'Audit Logs', adminOnly: true },
+  { href: '/admin/audit-logs', icon: ScrollText,      label: 'Audit Logs', adminOnly: true },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -180,8 +181,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </AnimatePresence>
       </main>
 
-      {/* Global Floating AI Chat Widget */}
-      <FloatingChatWidget />
+      {/* Global Floating AI Chat Widget (hidden on full chat page) */}
+      {pathname !== '/chat' && <FloatingChatWidget />}
 
       {/* Sign Out Warning Confirmation Modal */}
       <AnimatePresence>

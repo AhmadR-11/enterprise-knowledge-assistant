@@ -27,4 +27,9 @@ const startServer = async () => {
   }
 };
 
+// Process safety handlers for robust long-running server
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️ Warning: Unhandled Promise Rejection intercepted:', reason?.message || reason);
+});
+
 startServer();

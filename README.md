@@ -1,46 +1,163 @@
-# Enterprise Knowledge Assistant
+# Enterprise Knowledge Assistant (Cortex)
 
-An AI-powered, RAG-based (Retrieval-Augmented Generation) internal document Q&A system secured with Role-Based Access Control (RBAC). The project is divided into a robust Node.js/Express backend and a modern Next.js 15 frontend dashboard.
+An enterprise-grade, RAG-based (Retrieval-Augmented Generation) internal document Q&A assistant built with a layered Node.js/Express backend and a modern Next.js 15 frontend. The platform secures proprietary company documentation with strict Role-Based Access Control (RBAC) and departmental Space isolation, featuring a production-ready Server-Sent Events (SSE) streaming engine powered by Google Gemini.
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 🏗️ System Architecture
 
-The project follows a modular, layered architecture:
+```mermaid
+flowchart TD
+    subgraph Client["Frontend Client (Next.js 15 / React 18)"]
+        UI["Chat Interface & Dashboard"]
+        Hook["useChatStream Hook"]
+        Parser["SSE Stream Parser (fetch + Reader)"]
+        Batcher["RAF Token Batcher (60 FPS)"]
+        MD["MarkdownRenderer (react-markdown + GFM)"]
+        UI --> Hook
+        Hook --> Parser
+        Parser --> Batcher
+        Batcher --> MD
+    end
 
+    subgraph Backend["API Server (Node.js / Express 5)"]
+        AuthMiddleware["JWT Auth Guard (protect)"]
+        SpaceCheck["Space Access & RBAC Middleware"]
+        ChatController["Chat Controller (handleChatStream / handleChatQuery)"]
+        RetrievalSvc["Retrieval Service (Cosine Similarity)"]
+        LLMSvc["LLM Service (Gemini SDK Wrapper)"]
+        AuditSvc["Audit Service"]
+
+        AuthMiddleware --> SpaceCheck
+        SpaceCheck --> ChatController
+        ChatController --> RetrievalSvc
+        ChatController --> LLMSvc
+        ChatController --> AuditSvc
+    end
+
+    subgraph Data["Hybrid Data Tier"]
+        PG[("Neon PostgreSQL + pgvector")]
+        Mongo[("MongoDB Atlas")]
+    end
+
+    subgraph AI["Upstream AI (Google Gemini API)"]
+        EmbeddingModel["gemini-embedding-001 (768-dim)"]
+        ChatModel["gemini-2.5-flash (generateContentStream)"]
+    end
+
+    Client -- "POST /api/chat/stream (SSE)" --> AuthMiddleware
+    RetrievalSvc -- "Vector & Space Queries" --> PG
+    AuditSvc -- "Audit Logs & Doc Metadata" --> Mongo
+    RetrievalSvc -- "Embed Query" --> EmbeddingModel
+    LLMSvc -- "Stream Answer (with AbortSignal)" --> ChatModel
+    ChatModel -- "Stream Chunks" --> LLMSvc
+    LLMSvc -- "event: token / done / error" --> Client
 ```
-                            ┌─────────────────────────────────┐
-                            │      Next.js 15 Frontend        │
-                            │      (Zustand, Tailwind)        │
-                            └────────────────┬────────────────┘
-                                             │ HTTP / REST API
-                                             ▼
-                            ┌─────────────────────────────────┐
-                            │     Express.js API Gateway      │
-                            │  (JWT, Role & Space Middleware) │
-                            └───────┬─────────────────┬───────┘
-                                    │                 │
-            ┌───────────────────────┘                 └───────────────────────┐
-            ▼                                                                 ▼
-┌───────────────────────┐                                             ┌───────────────────────┐
-│     Neon PostgreSQL   │                                             │     MongoDB Atlas     │
-│ (Users, Spaces, RAG   │                                             │    (Audit Logs,       │
-│ Vector Chunks Index)  │                                             │  Document Metadata)   │
-└───────────────────────┘                                             └───────────────────────┘
+
+---
+
+## ⚡ Streaming Architecture & Protocol
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Client as Next.js Client (useChatStream)
+    participant Server as Express Server (/api/chat/stream)
+    participant PG as Neon Postgres (pgvector)
+    participant Gemini as Google Gemini (gemini-2.5-flash)
+
+    User->>Client: Submits question
+    Client->>Client: Mounts AbortController & sets status='waiting'
+    Client->>Server: POST /api/chat/stream (Authorization: Bearer <token>)
+    Server->>Server: Validate token, user role & space membership
+    Server-->>Client: 200 OK (Content-Type: text/event-stream, flushHeaders)
+    Server->>PG: Search nearest chunks (1 - (embedding <=> $1::vector))
+    PG-->>Server: Top context chunks + similarity scores
+    Server->>Gemini: generateContentStream(prompt, { signal: abortSignal })
+    
+    loop Stream Iteration
+        Gemini-->>Server: Text Chunk
+        Server-->>Client: event: token\ndata: {"text":"..."}\n\n
+        Client->>Client: Buffer tokens via requestAnimationFrame (RAF)
+    end
+
+    opt Keep-Alive Ping (every 15s)
+        Server-->>Client: : ping\n\n
+    end
+
+    alt Stream Completed Normally
+        Gemini-->>Server: Stream Complete & usageMetadata
+        Server-->>Client: event: done\ndata: {"finishReason":"STOP","usage":{...},"sources":[...]}\n\n
+        Client->>Client: Flush buffer, status='idle', render citations
+    else Client Disconnects / Stops
+        User->>Client: Clicks "Stop" or presses Escape
+        Client->>Client: abortController.abort(), status='stopped'
+        Client->>Server: Socket closed (req.on('close'))
+        Server->>Gemini: Abort upstream fetch request
+        Server->>Server: Log: "client disconnected, generation cancelled"
+    else Upstream / Runtime Error
+        Gemini-->>Server: Error thrown (e.g. rate limit / network)
+        Server-->>Client: event: error\ndata: {"code":"UPSTREAM_ERROR","message":"..."}\n\n
+        Client->>Client: Render inline error alert + "Retry" button
+    end
 ```
 
-### Backend (Layered Controller-Service-Model Pattern)
-* **Core:** Node.js, Express.js
-* **Relational DB:** PostgreSQL (Neon DB) for access control, users, spaces, and mappings
-* **Vector DB:** `pgvector` extension in PostgreSQL for storing text chunks and 1536-dimensional document embeddings (`text-embedding-3-small`)
-* **NoSQL DB:** MongoDB Atlas for system-wide structured audit logs and document ingestion status metadata
-* **AI Ingestion:** OpenAI SDK for generating text embeddings
+### Event Specification
 
-### Frontend (Modern App Router Dashboard)
-* **Core:** Next.js 15, React 18, TypeScript
-* **State Management:** Zustand (lightweight, client-side store)
-* **Styling:** Tailwind CSS (Custom Dark Navy/Indigo UI design system)
-* **API Client:** Axios (configured with automated request interceptors for JWT Bearer headers and automatic 401 redirect handling)
+Each event is serialized as standard Server-Sent Events (`event: <name>\ndata: <json>\n\n`):
+
+| Event | Payload Structure | Purpose |
+|---|---|---|
+| `token` | `{"text": "<string>"}` | Delivers an incremental text delta generated by the model. |
+| `done` | `{"finishReason": "STOP", "usage": {"promptTokens": N, "completionTokens": N, "totalTokens": N}, "sources": [...]}` | Signals successful completion, returns token counts, and attaches cited document references. |
+| `error` | `{"code": "BAD_REQUEST \| FORBIDDEN \| RETRIEVAL_ERROR \| UPSTREAM_ERROR", "message": "<safe user string>"}` | Emits safe, user-friendly failure details without leaking stack traces or internal API credentials. |
+| `: ping` | *(SSE Comment)* | Dispatched every 15 seconds to prevent intermediate reverse proxies (Nginx, Cloudflare) from closing idle connections. |
+
+### Streaming Engine Features
+
+* **Non-Blocking Fetch Stream Reader:** Implemented via `fetch` + `response.body.getReader()` and `new TextDecoder('utf-8')` with `{ stream: true }`.
+* **Zero Re-Render Storms:** High-frequency token streams are buffered in memory and batched to the UI via `requestAnimationFrame` (~16–33ms), delivering smooth 60 FPS rendering without CPU saturation.
+* **Mid-Stream Fault Tolerance:** Markdown rendering tolerates unclosed code fences (````), partial lists, and incomplete tables without jumping or layout shift.
+* **Full Cancellation Lifecycle:** A dedicated `AbortController` is attached to every stream. Clicking "Stop" or hitting `Escape` aborts the upstream Gemini call, stops iteration, preserves partial output on screen, and releases stream locks cleanly.
+* **Auto-Scroll with Manual Override:** Automatically follows generation down, but disengages if the user scrolls up to inspect previous answers, showing a "Jump to latest" floating pill.
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend
+* **Runtime & Framework:** Node.js, Express.js (v5.2.1)
+* **Relational Database & Vector Store:** PostgreSQL (Neon Serverless) with the `pgvector` extension (768-dimensional document and query embeddings)
+* **Document Metadata & Audit Logs:** MongoDB Atlas via Mongoose (v9.7.3)
+* **AI & LLM Services:**
+  * Embedding Model: Google Gemini `gemini-embedding-001` (768 dimensions)
+  * Chat Generation: Google Gemini `gemini-2.5-flash` (`generateContentStream` & `generateContent`)
+* **Document Ingestion:** Multer (memory storage, 20MB limit), `pdf-parse`, `mammoth` (DOCX extraction), semantic sliding-window text chunker (1000 characters, 150 overlap)
+* **Authentication & Security:** JWT (`jsonwebtoken`), password hashing (`bcrypt`), RBAC & Space access middleware
+
+### Frontend
+* **Core:** Next.js 15 (v15.5.20) App Router, React 18, TypeScript 5
+* **State Management:** Zustand (v4.5.4) for auth state & session storage
+* **Styling & Icons:** Tailwind CSS (v3.4.1), Lucide React
+* **Animations & Modals:** Framer Motion (v12.42.2)
+* **Markdown & Syntax Highlighting:** `react-markdown` (v10), `remark-gfm` (v4), `rehype-highlight` (v7) with GitHub Dark theme
+* **Feedback & Metrics:** Sonner (toasts), Recharts (dashboard analytics)
+* **HTTP Client:** Axios (v1.7.2) for standard management endpoints; native `fetch` for SSE streams
+
+---
+
+## ✨ Features
+
+* **3-Tier Role-Based Access Control (RBAC):**
+  * `Admin`: Full system control, space creation, user assignment, global document oversight, audit logs, and analytics.
+  * `Editor`: Document upload, metadata modification, and deletion restricted exclusively to assigned spaces.
+  * `Viewer`: Read-only document access and RAG Q&A chat restricted exclusively to assigned spaces.
+* **Departmental Space Isolation:** Multi-tenant workspace scoping where users can only search, retrieve, or query document chunks indexed within spaces they belong to.
+* **Dual Chat Engine:** Real-time token streaming (SSE) with an instant toggle to standard synchronous REST mode for verification and fallback testing.
+* **Rich Markdown Support:** Assistant outputs render headers, tables, task lists, and syntax-highlighted code blocks with an integrated one-click "Copy" button.
+* **Accessibility (a11y):** Screen-reader polite announcements (`aria-live="polite"`), explicit ARIA attributes, keyboard navigation (`Enter` to send, `Escape` to stop), and `prefers-reduced-motion` compliance.
+* **Audit Logging & Analytics:** Automatic tracking of logins, role updates, uploads, deletions, and chat queries with administrative filtering by user, date, or action.
 
 ---
 
@@ -50,149 +167,157 @@ The project follows a modular, layered architecture:
 enterprise-knowledge-assistant/
 ├── backend/
 │   ├── src/
-│   │   ├── config/             # Database & Client Initializations
-│   │   │   ├── db.mongo.js     # MongoDB Mongoose connection
-│   │   │   ├── db.postgres.js  # PostgreSQL pg pool pooler
-│   │   │   └── openai.js       # OpenAI API client configuration
-│   │   ├── models/             # Database Access Layer
-│   │   │   ├── mongo/          # MongoDB Models (Document, AuditLog, ChatSession)
-│   │   │   └── postgres/       # PostgreSQL Models (User, Space, UserSpaces, Chunks)
-│   │   ├── controllers/        # Request Handlers
-│   │   ├── middleware/         # Auth, RBAC, Space membership & Error filters
-│   │   ├── routes/             # Express Route declarations
-│   │   ├── services/           # Ingestion pipeline & Vector operations
-│   │   ├── utils/              # Text extractors & Chunking algorithms
-│   │   └── app.js              # Express app initialization
-│   ├── seed.js                 # Admin account database seeder
-│   ├── verify_fr0.js           # FR-0 core integration tests
-│   └── verify_fr1.js           # FR-1 admin requirements integration tests
+│   │   ├── config/             # Database & AI initializations (Neon, Mongo, Gemini)
+│   │   ├── controllers/        # Request handlers (auth, space, user, doc, audit, chat)
+│   │   ├── middleware/         # JWT protect, role authorization, space access guard
+│   │   ├── models/
+│   │   │   ├── mongo/          # Document & AuditLog schemas
+│   │   │   └── postgres/       # User, Space, UserSpace, DocumentChunk models
+│   │   ├── routes/             # Express routes (including /api/chat and /api/chat/stream)
+│   │   ├── services/           # Ingestion, vector retrieval, LLM Gemini services
+│   │   ├── utils/              # Text extraction, chunking, API responses
+│   │   ├── app.js              # Express app definition & CORS configuration
+│   │   └── server.js           # Server bootstrap & DB connection test
+│   ├── .env.example            # Backend environment template
+│   ├── seed.js                 # Seeder for Admin, Editor, Viewer accounts & default Space
+│   └── test_stream.js          # Automated verification test suite for SSE streaming
 │
 ├── frontend/
-│   ├── app/                    # Next.js App Router Structure
-│   │   ├── (auth)/             # Login & register authentication routes
+│   ├── app/
+│   │   ├── (auth)/             # Login & register pages
 │   │   ├── (dashboard)/        # Layout-wrapped authenticated dashboard routes
-│   │   │   ├── dashboard/      # Main admin overview page
 │   │   │   ├── admin/          # Admin CRUD (Users, Spaces, Audit Logs)
-│   │   │   ├── documents/      # Document uploading & reprocessing table
-│   │   │   └── chat/           # Chat window stub
-│   │   └── globals.css         # Styling, tokens, animations, and transitions
-│   ├── components/             # Reusable UI component modules
-│   ├── lib/                    # Authentication helpers & API Axios interceptors
-│   └── types/                  # Shared TypeScript interface definitions
+│   │   │   ├── dashboard/      # Overview metrics & Recharts visualization
+│   │   │   ├── documents/      # Document upload, metadata edit, delete, reprocess
+│   │   │   └── chat/           # Interactive streaming chat interface
+│   │   ├── globals.css         # Styling, tokens, and highlight.js theme
+│   │   └── layout.tsx          # Root HTML layout with Sonner toast provider
+│   ├── components/
+│   │   ├── chat/               # MessageBubble, ChatInput, MarkdownRenderer, TypingIndicator
+│   │   └── FloatingChatWidget.tsx # Global slide-over chat widget with @mentions
+│   ├── hooks/
+│   │   └── useChatStream.ts    # Custom SSE streaming hook (fetch, reader, RAF batcher)
+│   ├── lib/                    # Axios client, auth storage, Zustand store
+│   ├── types/                  # Shared TypeScript interfaces
+│   └── .env.example            # Frontend environment template
 ```
 
 ---
 
-## ⚙️ Setup & Configuration
+## ⚙️ Setup & Installation
 
 ### Prerequisites
 * [Node.js](https://nodejs.org/) (v18.x or higher)
-* [PostgreSQL](https://www.postgresql.org/) database with the `pgvector` extension enabled
-* [MongoDB](https://www.mongodb.com/) instance (Atlas recommended)
-* [OpenAI API Key](https://platform.openai.com/)
+* [PostgreSQL](https://neon.tech/) instance with the `pgvector` extension enabled
+* [MongoDB](https://www.mongodb.com/atlas) cluster (Atlas recommended)
+* [Google Gemini API Key](https://aistudio.google.com/)
+
+---
 
 ### 1. Backend Configuration
-Create a `.env` file in the `backend/` directory:
-```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
-PG_CONNECTION_STRING=postgresql://user:pass@host/dbname?sslmode=verify-full
-JWT_SECRET=your_secure_jwt_random_string
-OPENAI_API_KEY=sk-proj-your_openai_api_key_here
+
+Navigate to `backend/` and create your `.env` file:
+
+```bash
+cd backend
+cp .env.example .env
 ```
 
+Edit `backend/.env`:
+```env
+PORT=5000
+MONGO_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/knowledge_assistant?retryWrites=true&w=majority
+PG_CONNECTION_STRING=postgresql://<user>:<password>@<neon-host>/<database>?sslmode=verify-full
+JWT_SECRET=your_super_secret_jwt_random_string_here
+GEMINI_API_KEY=AIzaSyYourGeminiApiKeyHere
+```
+
+Install backend dependencies:
+```bash
+npm install
+```
+
+Seed the default roles and workspace:
+```bash
+# Seed accounts without modifying existing records
+node seed.js
+
+# OR perform a clean reset of test records and re-seed:
+node seed.js --clean
+```
+
+Default credentials created:
+* 🛡️ **Admin:** `admin@company.com` / `Admin@1234`
+* ✏️ **Editor:** `editor@company.com` / `Editor@1234` (assigned to "General Knowledge")
+* 👁️ **Viewer:** `viewer@company.com` / `Viewer@1234` (assigned to "General Knowledge")
+
+Start the backend server:
+```bash
+npm run dev
+# Server starts on http://localhost:5000
+```
+
+---
+
 ### 2. Frontend Configuration
-Create a `.env.local` file in the `frontend/` directory:
+
+In a separate terminal, navigate to `frontend/`:
+
+```bash
+cd frontend
+cp .env.example .env.local
+```
+
+Edit `frontend/.env.local`:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
----
-
-## 🚀 Running the Application
-
-### 1. Install Dependencies
+Install frontend dependencies:
 ```bash
-# Install backend packages
-cd backend
-npm install
-
-# Install frontend packages
-cd ../frontend
 npm install
 ```
 
-### 2. Seed Admin User Account
-Before starting the backend for the first time, run the seed script to create a secure root admin user:
+Start the Next.js development server:
 ```bash
-cd backend
-node seed.js
-```
-* **Default Credentials:**
-  * 📧 **Email:** `admin@company.com`
-  * 🔑 **Password:** `Admin@1234`
-
-### 3. Start Development Servers
-
-Run the backend server:
-```bash
-cd backend
 npm run dev
-```
-
-In a separate terminal window, start the Next.js development server:
-```bash
-cd frontend
-npm run dev
-```
-
-Visit the application at **[http://localhost:3000](http://localhost:3000)**.
-
----
-
-## 🧪 Running Integration Tests
-
-Two automated test suites are provided to verify the implementation against functional requirements:
-
-```bash
-cd backend
-
-# Test core authentication, registration, RBAC, and Audit Logging (FR-0)
-node verify_fr0.js
-
-# Test Admin actions: Space CRUD, User management, Document processing, Ingestion & Stats (FR-1)
-node verify_fr1.js
+# Dashboard opens on http://localhost:3000
 ```
 
 ---
 
-## 🛠️ API Documentation
+## 🧪 Testing the Streaming Endpoint
 
-### Authentication (`/api/auth`)
-* `POST /register` - Register a new account
-* `POST /login` - Log in and obtain a JWT session token
+You can test the SSE endpoint directly from the command line using `curl`:
 
-### Spaces (`/api/spaces`)
-* `GET /my` - List spaces accessible to the user
-* `POST /` - Create a space (Admin only)
-* `PATCH /:id` - Rename a space (Admin only)
-* `DELETE /:id` - Delete a space (Admin only)
-* `POST /assign` - Assign a user to a space (Admin only)
-* `DELETE /assign` - Remove a user from a space (Admin only)
-* `GET /:spaceId/users` - Get all users assigned to a space (Member/Admin)
+```bash
+# 1. Authenticate and retrieve token
+TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@company.com","password":"Admin@1234","role":"admin"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
 
-### Users (`/api/users`)
-* `GET /` - List all users in the system (Admin only)
-* `POST /` - Direct account creation (Admin only)
-* `PATCH /:id/role` - Update a user's role (Admin only)
-* `DELETE /:id` - Delete a user (Admin only)
+# 2. Open an unbuffered SSE stream
+curl -N -X POST http://localhost:5000/api/chat/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What documentation is available in our space?"}'
+```
 
-### Documents (`/api/documents`)
-* `POST /` - Upload file (Admin / Editor; expects `multipart/form-data`)
-* `GET /` - List documents in a space
-* `DELETE /:id` - Delete a document
-* `POST /:id/reprocess` - Force re-chunking and re-embedding (Admin only)
+To run the automated backend test suite covering aborts, disconnects, bad inputs, and upstream errors:
+```bash
+cd backend
+node test_stream.js
+```
 
-### Audit & Statistics (`/api/audit`)
-* `GET /` - Fetch filterable audit trails (Admin only)
-* `GET /stats` - Retrieve usage analytics (Admin only)
+---
+
+## ⚠️ Known Limitations & Roadmap
+
+In adherence to engineering integrity, the following items represent current constraints and scheduled roadmap items:
+
+1. **Single-Turn Context Window (Current):** The LLM prompt currently grounds answers using retrieved vector chunks for the immediate query. Previous conversation turns are not yet threaded into multi-turn chat memory.
+2. **In-Memory File Processing:** Uploaded files are ingested via in-memory buffers (`multer.memoryStorage()`) to extract text and generate chunks. Original binary files (PDF/DOCX) are not retained in cloud object storage (S3/GCS); only text chunks and vectors are persisted in PostgreSQL.
+3. **Cache Layer:** Vector embeddings and queries are generated on-demand without Redis caching. High-frequency queries would benefit from a Redis response cache.
+4. **Chat Session Persistence:** While MongoDB audit records track queries, chat transcripts in the web UI are held in client state and reset on page reload (`ChatSession.model.js` is reserved for future persistent session storage).
+5. **Agentic Tool Calling:** Retrieval currently occurs deterministically before calling Gemini; multi-step autonomous tool execution (e.g. LangChain agent loops) is planned for a subsequent version.
