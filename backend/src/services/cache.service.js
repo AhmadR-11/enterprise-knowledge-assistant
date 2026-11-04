@@ -207,6 +207,7 @@ async function releaseLock(key, token) {
 
 module.exports = {
   isReady,
+  isRedisEnabled,
   getJSON,
   setJSON,
   del,

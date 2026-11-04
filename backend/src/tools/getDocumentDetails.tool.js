@@ -129,9 +129,8 @@ const executeGetDocumentDetails = async (args, userContext) => {
     } catch {
       // Fail-open
     }
+    console.debug(`[DocMetaCache] MISS: document ${documentId}`);
   }
-
-  console.debug(`[DocMetaCache] MISS: document ${documentId}`);
 
   // 6. On cache miss: assemble metadata from DB doc, space name, and preview snippet
 

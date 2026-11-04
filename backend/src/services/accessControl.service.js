@@ -102,9 +102,8 @@ async function getUserAccess(user) {
     } catch {
       // Fail-open
     }
+    console.debug(`[AccessCache] MISS: user ${userId} (key: ${cacheKey})`);
   }
-
-  console.debug(`[AccessCache] MISS: user ${userId} (key: ${cacheKey})`);
 
   // 2. Fetch fresh user role from PostgreSQL to guarantee consistency
   let currentRole = user.role;

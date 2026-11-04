@@ -8,14 +8,14 @@ import { useAuthStore } from '@/lib/store';
 import { toast } from 'sonner';
 
 function StatusBadge({ status }: { status: Document['status'] }) {
-  const map = {
-    ready:      'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    processing: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    failed:     'bg-red-500/20 text-red-300 border-red-500/30',
-    pending:    'bg-slate-500/20 text-slate-300 border-slate-700',
+  const map: Record<string, string> = {
+    ready:      'badge-ready',
+    processing: 'badge-processing',
+    failed:     'badge-failed',
+    pending:    'badge-pending',
   };
   return (
-    <span className={`badge border text-[11px] px-2 py-0.5 rounded-md font-medium uppercase tracking-wider ${map[status]}`}>
+    <span className={`badge ${map[status] || 'badge-pending'} text-[10px] font-mono px-2 py-0.5 rounded-control uppercase tracking-wider`}>
       {status}
     </span>
   );
@@ -34,7 +34,6 @@ export default function DocumentsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'processing' | 'failed' | 'pending'>('all');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Metadata Edit Modal State (FR-2.3)
   const [editDoc, setEditDoc]           = useState<Document | null>(null);
   const [editTitle, setEditTitle]       = useState('');
   const [editDesc, setEditDesc]         = useState('');
@@ -112,7 +111,6 @@ export default function DocumentsPage() {
     }
   };
 
-  // Open Edit Metadata Modal (FR-2.3)
   const openEditModal = (doc: Document) => {
     setEditDoc(doc);
     setEditTitle(doc.title || doc.originalName);
@@ -120,7 +118,6 @@ export default function DocumentsPage() {
     setEditTags(doc.tags ? doc.tags.join(', ') : '');
   };
 
-  // Save Document Metadata (FR-2.3)
   const saveMetadata = async () => {
     if (!editDoc) return;
     setSavingMeta(true);
@@ -153,50 +150,46 @@ export default function DocumentsPage() {
   };
 
   const canUpload = currentUser?.role === 'admin' || currentUser?.role === 'editor';
-
   const filteredDocs = docs.filter(d => statusFilter === 'all' || d.status === statusFilter);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.2 }}
       className="p-6 max-w-5xl mx-auto space-y-6"
     >
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-wide">Documents</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          {docs.length} documents indexed across your assigned knowledge space(s)
+        <h1 className="text-xl font-semibold text-text-primary tracking-tight">Documents</h1>
+        <p className="text-text-muted text-xs mt-0.5">
+          <span className="font-mono tabular-nums">{docs.length}</span> documents indexed across your assigned knowledge space(s)
         </p>
       </div>
 
-      {/* Upload Zone (FR-2.1: Editor uploads only into assigned spaces) */}
+      {/* Upload Zone */}
       {canUpload ? (
-        <motion.div
-          whileHover={{ scale: 1.002 }}
-          className="card border-dashed border-2 border-slate-700/80 hover:border-indigo-500/60 transition-colors shadow-lg"
-        >
+        <div className="card border-dashed border border-border hover:border-border-strong bg-surface-1/40 hover:bg-surface-1/70 transition-all rounded-card shadow-subtle p-5">
           <div
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={onDrop}
-            className={`flex flex-col items-center justify-center py-8 gap-3 rounded-xl transition-all cursor-pointer ${drag ? 'bg-indigo-600/10 border-indigo-500' : 'bg-[#151d35]/30'}`}
+            className={`flex flex-col items-center justify-center py-6 gap-2.5 rounded-control transition-all cursor-pointer ${drag ? 'bg-surface-2 border border-accent-border' : 'bg-surface-2/40'}`}
             onClick={() => fileRef.current?.click()}
           >
-            <div className="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shadow-md">
-              <Upload className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 rounded-control bg-surface-2 border border-border flex items-center justify-center text-accent shadow-subtle">
+              <Upload className="w-4 h-4" />
             </div>
             <div className="text-center">
-              <p className="text-white font-medium text-sm">
+              <p className="text-text-primary font-medium text-xs">
                 {file ? (
-                  <span className="text-indigo-400 flex items-center gap-1.5 justify-center">
-                    <CheckCircle className="w-4 h-4 text-emerald-400" /> {file.name}
+                  <span className="text-accent flex items-center gap-1.5 justify-center font-medium">
+                    <CheckCircle className="w-3.5 h-3.5 text-success" /> {file.name}
                   </span>
                 ) : (
                   'Drag & drop or click to upload file'
                 )}
               </p>
-              <p className="text-slate-500 text-xs mt-1">PDF, DOCX, TXT, MD — max 20MB</p>
+              <p className="text-text-muted text-[11px] mt-0.5">PDF, DOCX, TXT, MD — max 20MB</p>
             </div>
             <input
               ref={fileRef}
@@ -211,9 +204,9 @@ export default function DocumentsPage() {
             />
           </div>
 
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-2.5 mt-3.5">
             <select
-              className="input flex-1 bg-[#151d35] border-slate-700/70 text-slate-200"
+              className="input flex-1 bg-surface-2 border-border text-text-primary text-xs"
               value={spaceId}
               onChange={e => setSpaceId(e.target.value)}
             >
@@ -221,78 +214,80 @@ export default function DocumentsPage() {
               {spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <button
+              type="button"
               onClick={uploadFile}
               disabled={uploading || !file || !spaceId}
-              className="btn-primary flex items-center gap-2 text-sm whitespace-nowrap px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+              className="btn-primary text-xs whitespace-nowrap px-4 py-2"
             >
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
               {uploading ? 'Processing...' : 'Upload File'}
             </button>
           </div>
 
           {spaces.length === 0 && (
-            <div className="mt-3 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 border border-amber-500/20 rounded-xl px-3.5 py-2.5">
+            <div className="mt-3 flex items-center gap-2 text-warning text-xs bg-warning/10 border border-warning/20 rounded-control px-3 py-2">
               <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-              You are not assigned to any space yet. Please contact an Administrator to assign you to a space.
+              <span>You are not assigned to any space yet. Contact an Administrator to assign you to a space.</span>
             </div>
           )}
 
           {uploadError && (
-            <div className="mt-3 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+            <div className="mt-3 flex items-center gap-2 text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-3 py-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {uploadError}
+              <span>{uploadError}</span>
             </div>
           )}
-        </motion.div>
+        </div>
       ) : (
-        <div className="card bg-slate-800/20 border-slate-800 text-slate-400 text-xs flex items-center gap-2 py-3 px-4 rounded-xl">
-          <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          Viewers have read-only access and cannot upload or delete documents.
+        <div className="card bg-surface-1 border-border text-text-muted text-xs flex items-center gap-2 py-3 px-4 rounded-card">
+          <ShieldAlert className="w-4 h-4 text-warning flex-shrink-0" />
+          <span>Viewers have read-only access and cannot upload or delete documents.</span>
         </div>
       )}
 
-      {/* Filter Tabs by Upload Status (FR-2.6) */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5 p-1 bg-[#151d35]/80 border border-slate-800 rounded-xl text-xs">
+      {/* Filter Tabs by Upload Status */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 bg-surface-2 border border-border rounded-control text-xs">
           {(['all', 'ready', 'processing', 'failed', 'pending'] as const).map(st => (
             <button
               key={st}
+              type="button"
               onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-lg capitalize font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-[6px] capitalize font-medium text-xs transition-colors ${
                 statusFilter === st
-                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-surface-3 text-text-primary border border-border-strong shadow-subtle'
+                  : 'text-text-muted hover:text-text-secondary'
               }`}
             >
               {st}
             </button>
           ))}
         </div>
-        <div className="text-slate-500 text-xs flex items-center gap-1.5">
+        <div className="text-text-muted text-xs flex items-center gap-1.5">
           <Filter className="w-3.5 h-3.5" /> Showing {filteredDocs.length} of {docs.length}
         </div>
       </div>
 
-      {/* Documents Table (FR-2.6: Status, Chunks, Uploader, Edit Metadata & Personal Delete) */}
-      <div className="card p-0 overflow-hidden shadow-xl">
+      {/* Documents Table */}
+      <div className="card p-0 overflow-hidden shadow-subtle rounded-card border border-border">
         <table className="w-full">
-          <thead className="bg-[#0a0f1e]/80 border-b border-slate-800">
+          <thead className="bg-surface-1 border-b border-border">
             <tr>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Document</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Status</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Chunks</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Owner</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Uploaded</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Actions</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Document</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Status</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Chunks</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Owner</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Uploaded</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-border">
             {loading ? (
               <tr><td colSpan={6} className="td text-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-400" />
+                <Loader2 className="w-5 h-5 animate-spin mx-auto text-accent" />
               </td></tr>
             ) : filteredDocs.length === 0 ? (
-              <tr><td colSpan={6} className="td text-center py-12 text-slate-500 text-sm">No documents match the selected status</td></tr>
+              <tr><td colSpan={6} className="td text-center py-12 text-text-muted text-xs">No documents match the selected status</td></tr>
             ) : (
               <AnimatePresence>
                 {filteredDocs.map(doc => {
@@ -306,29 +301,29 @@ export default function DocumentsPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="table-row hover:bg-slate-800/40 transition-colors"
+                      className="table-row hover:bg-surface-2 transition-colors"
                     >
                       <td className="td py-3 px-4">
                         <div className="flex items-start gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-slate-800/80 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                          <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 mt-0.5 text-text-muted">
+                            <FileText className="w-3.5 h-3.5" />
                           </div>
                           <div>
-                            <p className="text-white text-sm font-medium truncate max-w-[220px]">
+                            <p className="text-text-primary text-xs font-medium truncate max-w-[220px]">
                               {doc.title || doc.originalName}
                             </p>
                             {doc.title && (
-                              <p className="text-[11px] text-slate-500 truncate max-w-[220px]">{doc.originalName}</p>
+                              <p className="text-[11px] text-text-muted truncate max-w-[220px]">{doc.originalName}</p>
                             )}
                             {doc.description && (
-                              <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[240px] italic">
+                              <p className="text-[11px] text-text-muted mt-0.5 truncate max-w-[240px] italic">
                                 {doc.description}
                               </p>
                             )}
                             {doc.tags && doc.tags.length > 0 && (
                               <div className="flex gap-1 mt-1 flex-wrap">
                                 {doc.tags.map((t, idx) => (
-                                  <span key={idx} className="inline-flex items-center gap-1 text-[10px] bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-1.5 py-0.5 rounded-md">
+                                  <span key={idx} className="inline-flex items-center gap-1 text-[10px] bg-surface-2 text-text-secondary border border-border px-1.5 py-0.5 rounded-control">
                                     <Tag className="w-2.5 h-2.5" /> {t}
                                   </span>
                                 ))}
@@ -338,54 +333,52 @@ export default function DocumentsPage() {
                         </div>
                       </td>
                       <td className="td py-3 px-4"><StatusBadge status={doc.status} /></td>
-                      <td className="td py-3 px-4 text-slate-400 text-xs font-mono">{doc.chunkCount || '—'}</td>
+                      <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">{doc.chunkCount || '—'}</td>
                       <td className="td py-3 px-4">
                         {isOwner ? (
-                          <span className="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md font-medium">
+                          <span className="badge badge-editor text-[10px] py-0 px-1.5">
                             You
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400 font-mono">User #{doc.uploadedBy}</span>
+                          <span className="text-xs text-text-muted font-mono tabular-nums">User #{doc.uploadedBy}</span>
                         )}
                       </td>
-                      <td className="td py-3 px-4 text-slate-500 text-xs whitespace-nowrap">
+                      <td className="td py-3 px-4 text-text-muted text-xs whitespace-nowrap font-mono tabular-nums">
                         {new Date(doc.createdAt).toLocaleDateString()}
                       </td>
                       <td className="td py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          {/* FR-2.3 Edit Metadata */}
+                        <div className="flex items-center gap-1">
                           {canEditMeta && (
                             <button
+                              type="button"
                               onClick={() => openEditModal(doc)}
-                              className="btn-ghost p-1.5 rounded-lg border border-slate-700/80 hover:border-indigo-500/50 hover:text-indigo-300 transition"
-                              title="Edit metadata (Title, Tags, Description)"
+                              className="btn-ghost p-1.5 rounded-control border border-border hover:border-border-strong text-text-muted hover:text-text-primary transition"
+                              title="Edit metadata"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                           )}
-
-                          {/* Admin Re-embed */}
                           {currentUser?.role === 'admin' && (
                             <button
+                              type="button"
                               onClick={() => reprocess(doc._id, doc.originalName)}
-                              className="btn-ghost p-1.5 rounded-lg border border-slate-700/80 hover:border-indigo-500/50 hover:text-indigo-300 transition"
+                              className="btn-ghost p-1.5 rounded-control border border-border hover:border-border-strong text-text-muted hover:text-text-primary transition"
                               title="Re-embed document"
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
                             </button>
                           )}
-
-                          {/* FR-2.4 Delete Document */}
                           {canDelete ? (
                             <button
+                              type="button"
                               onClick={() => deleteDoc(doc._id, doc.title || doc.originalName)}
-                              className="btn-danger p-1.5 rounded-lg hover:bg-red-500/20 hover:text-red-400 transition"
+                              className="btn-danger p-1.5 rounded-control"
                               title="Delete document"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           ) : (
-                            <span className="text-[11px] text-slate-600 italic">No access</span>
+                            <span className="text-[11px] text-text-muted italic">Read-only</span>
                           )}
                         </div>
                       </td>
@@ -398,37 +391,41 @@ export default function DocumentsPage() {
         </table>
       </div>
 
-      {/* FR-2.3 Edit Metadata Modal */}
+      {/* Edit Metadata Modal */}
       <AnimatePresence>
         {editDoc && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-              className="card w-full max-w-md border border-slate-700/80 bg-[#0f1629]/95 backdrop-blur-2xl shadow-2xl p-6 rounded-2xl space-y-4"
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
-                    <Pencil className="w-4 h-4 text-indigo-400" />
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center text-accent">
+                    <Pencil className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-white text-sm">Edit Document Metadata</h2>
-                    <p className="text-[11px] text-slate-400">{editDoc.originalName}</p>
+                    <h2 className="font-semibold text-text-primary text-xs">Edit Document Metadata</h2>
+                    <p className="text-[10px] text-text-muted truncate max-w-[200px]">{editDoc.originalName}</p>
                   </div>
                 </div>
-                <button onClick={() => setEditDoc(null)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setEditDoc(null)}
+                  className="text-text-muted hover:text-text-primary p-1 rounded-control"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="label text-xs font-semibold text-slate-300 mb-1">Display Title</label>
+                  <label className="label">Display Title</label>
                   <input
-                    className="input bg-[#151d35] border-slate-700/80 text-sm focus:border-indigo-500"
+                    className="input text-xs"
                     placeholder="Enter document title..."
                     value={editTitle}
                     onChange={e => setEditTitle(e.target.value)}
@@ -436,9 +433,9 @@ export default function DocumentsPage() {
                 </div>
 
                 <div>
-                  <label className="label text-xs font-semibold text-slate-300 mb-1">Description</label>
+                  <label className="label">Description</label>
                   <textarea
-                    className="input bg-[#151d35] border-slate-700/80 text-sm focus:border-indigo-500 min-h-[70px] resize-none"
+                    className="input text-xs min-h-[70px] resize-none"
                     placeholder="Enter brief document description..."
                     value={editDesc}
                     onChange={e => setEditDesc(e.target.value)}
@@ -446,28 +443,30 @@ export default function DocumentsPage() {
                 </div>
 
                 <div>
-                  <label className="label text-xs font-semibold text-slate-300 mb-1">Tags (Comma-separated)</label>
+                  <label className="label">Tags (Comma-separated)</label>
                   <input
-                    className="input bg-[#151d35] border-slate-700/80 text-sm focus:border-indigo-500"
-                    placeholder="e.g. policy, HR, 2026"
+                    className="input text-xs"
+                    placeholder="e.g. policy, HR, architecture"
                     value={editTags}
                     onChange={e => setEditTags(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-slate-800">
+              <div className="flex gap-2 pt-2 border-t border-border">
                 <button
+                  type="button"
                   onClick={saveMetadata}
                   disabled={savingMeta}
-                  className="btn-primary flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs rounded-xl shadow-lg shadow-indigo-500/20"
+                  className="btn-primary flex-1 text-xs py-2"
                 >
-                  {savingMeta ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  {savingMeta ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
                   Save Changes
                 </button>
                 <button
+                  type="button"
                   onClick={() => setEditDoc(null)}
-                  className="btn-ghost px-4 py-2.5 text-xs rounded-xl border border-slate-700/80 text-slate-300"
+                  className="btn-ghost px-4 py-2 text-xs border border-border text-text-secondary hover:text-text-primary"
                 >
                   Cancel
                 </button>

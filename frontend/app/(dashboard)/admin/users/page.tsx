@@ -83,53 +83,57 @@ export default function UsersPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.2 }}
       className="p-6 max-w-5xl mx-auto space-y-6"
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-wide">User Management</h1>
-          <p className="text-slate-400 text-sm mt-1">{users.length} system accounts registered</p>
+          <h1 className="text-xl font-semibold text-text-primary tracking-tight">User Management</h1>
+          <p className="text-text-muted text-xs mt-0.5">
+            <span className="font-mono tabular-nums">{users.length}</span> system accounts registered
+          </p>
         </div>
         <button
+          type="button"
           onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20"
+          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2"
         >
-          <Plus className="w-4 h-4" /> New User
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>New User</span>
         </button>
       </div>
 
-      {/* Search */}
+      {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
         <input
-          className="input pl-10 bg-[#151d35] border-slate-700/70 text-slate-200"
+          className="input pl-9 text-xs"
           placeholder="Search by email or role..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
       </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-hidden shadow-xl">
+      {/* Users Table */}
+      <div className="card p-0 overflow-hidden shadow-subtle rounded-card border border-border">
         <table className="w-full">
-          <thead className="bg-[#0a0f1e]/80 border-b border-slate-800">
+          <thead className="bg-surface-1 border-b border-border">
             <tr>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Email Address</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Access Role</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Created Date</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Actions</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Email Address</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Access Role</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Created Date</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-border">
             {loading ? (
               <tr><td colSpan={4} className="td text-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-400" />
+                <Loader2 className="w-5 h-5 animate-spin mx-auto text-accent" />
               </td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="td text-center py-12 text-slate-500 text-sm">No users found</td></tr>
+              <tr><td colSpan={4} className="td text-center py-12 text-text-muted text-xs">No users found</td></tr>
             ) : (
               <AnimatePresence>
                 {filtered.map(u => {
@@ -140,37 +144,41 @@ export default function UsersPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="table-row hover:bg-slate-800/40 transition-colors"
+                      className="table-row hover:bg-surface-2 transition-colors"
                     >
-                      <td className="td py-3.5 px-4 font-medium text-white text-sm">
+                      <td className="td py-3 px-4 font-medium text-text-primary text-xs">
                         <div className="flex items-center gap-2">
-                          {isSelf && <UserCheck className="w-4 h-4 text-indigo-400" />}
-                          {u.email}
+                          {isSelf && <UserCheck className="w-3.5 h-3.5 text-accent" />}
+                          <span>{u.email}</span>
                         </div>
                       </td>
-                      <td className="td py-3.5 px-4">
+                      <td className="td py-3 px-4">
                         <select
                           value={u.role}
                           onChange={e => changeRole(u.id, e.target.value as User['role'], u.email)}
                           disabled={isSelf}
                           title={isSelf ? "You cannot change your own role" : ""}
-                          className={`bg-[#151d35] border border-slate-700/80 text-slate-300 rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:border-indigo-500 ${isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-slate-600'}`}
+                          className={`bg-surface-2 border border-border text-text-primary rounded-control px-2.5 py-1 text-xs focus:outline-none focus:border-accent-border ${isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-border-strong'}`}
                         >
                           {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                       </td>
-                      <td className="td py-3.5 px-4 text-slate-500 text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-                      <td className="td py-3.5 px-4">
+                      <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">
+                        {new Date(u.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="td py-3 px-4">
                         {isSelf ? (
-                          <span className="text-xs text-indigo-400 font-semibold px-2 py-1 bg-indigo-500/10 rounded-md border border-indigo-500/20">
+                          <span className="badge badge-admin text-[10px] py-0 px-2">
                             Current User
                           </span>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => deleteUser(u.id, u.email)}
-                            className="btn-danger flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg hover:bg-red-500/20 transition"
+                            className="btn-danger flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-control"
                           >
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
                           </button>
                         )}
                       </td>
@@ -183,23 +191,23 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* Animated Create Modal */}
+      {/* Create Modal */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.2 }}
-              className="card w-full max-w-sm border-slate-700/80 shadow-2xl bg-[#0f1629]"
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="card w-full max-w-sm border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card"
             >
-              <h2 className="font-bold text-white text-lg mb-4">Create User Account</h2>
-              <div className="space-y-4">
+              <h2 className="font-semibold text-text-primary text-sm mb-3.5">Create User Account</h2>
+              <div className="space-y-3.5">
                 <div>
-                  <label className="label text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+                  <label className="label">Email Address</label>
                   <input
-                    className="input bg-[#151d35] border-slate-700"
+                    className="input text-xs"
                     type="email"
                     placeholder="user@company.com"
                     value={form.email}
@@ -207,9 +215,9 @@ export default function UsersPage() {
                   />
                 </div>
                 <div>
-                  <label className="label text-xs font-semibold text-slate-400 mb-1">Password</label>
+                  <label className="label">Password</label>
                   <input
-                    className="input bg-[#151d35] border-slate-700"
+                    className="input text-xs"
                     type="password"
                     placeholder="Min 6 characters"
                     value={form.password}
@@ -217,29 +225,32 @@ export default function UsersPage() {
                   />
                 </div>
                 <div>
-                  <label className="label text-xs font-semibold text-slate-400 mb-1">Assign Role</label>
+                  <label className="label">Assign Role</label>
                   <select
-                    className="input bg-[#151d35] border-slate-700"
+                    className="input text-xs"
                     value={form.role}
                     onChange={e => setForm(f => ({ ...f, role: e.target.value as User['role'] }))}
                   >
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
-                {error && <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>}
-                <div className="flex gap-3 pt-2">
+                {error && <p className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-2.5 py-1.5">{error}</p>}
+                <div className="flex gap-2.5 pt-2 border-t border-border">
                   <button
+                    type="button"
                     onClick={() => { setShowModal(false); setError(''); }}
-                    className="btn-ghost flex-1 text-xs py-2.5 rounded-xl border border-slate-700/70"
+                    className="btn-ghost flex-1 text-xs py-2 border border-border text-text-secondary hover:text-text-primary"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={createUser}
                     disabled={creating}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2 text-xs py-2.5 rounded-xl shadow-md"
+                    className="btn-primary flex-1 flex items-center justify-center gap-1.5 text-xs py-2"
                   >
-                    {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Create Account
+                    {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Create Account</span>
                   </button>
                 </div>
               </div>

@@ -3,6 +3,20 @@ const cacheService = require('./cache.service');
 
 const DENYLIST_PREFIX = 'bl:';
 
+let lastOfflineWarnTime = 0;
+const OFFLINE_WARN_INTERVAL_MS = 60000; // Log at most once per 60s during an outage
+
+/**
+ * Rate-limited logger for token denylist warnings during Redis outages
+ */
+function logOfflineWarningThrottled() {
+  const now = Date.now();
+  if (now - lastOfflineWarnTime > OFFLINE_WARN_INTERVAL_MS) {
+    console.warn('[TokenDenylist] Redis offline & AUTH_DENYLIST_FAIL_CLOSED=false: failing open, token revocation cannot be verified');
+    lastOfflineWarnTime = now;
+  }
+}
+
 /**
  * Checks if the authentication denylist should fail-closed when Redis is unavailable.
  * Default is false (fail-open: prioritize availability over strict revocation enforcement).
@@ -61,7 +75,12 @@ async function isTokenDenied(jti) {
     return { isDenied: false };
   }
 
-  // If Redis is down / not ready
+  // If Redis is not enabled, token revocation denylist is disabled
+  if (!cacheService.isRedisEnabled()) {
+    return { isDenied: false };
+  }
+
+  // If Redis is enabled but currently offline / not ready
   if (!cacheService.isReady()) {
     if (isDenylistFailClosed()) {
       console.warn('[TokenDenylist] Redis offline & AUTH_DENYLIST_FAIL_CLOSED=true: rejecting authentication');
@@ -70,8 +89,8 @@ async function isTokenDenied(jti) {
         error: 'Authentication service temporarily unavailable; cannot verify revocation status'
       };
     }
-    // Fail-open default: log warning and proceed
-    console.warn('[TokenDenylist] Redis offline & AUTH_DENYLIST_FAIL_CLOSED=false: failing open, token revocation cannot be verified');
+    // Fail-open default: log rate-limited warning and proceed
+    logOfflineWarningThrottled();
     return { isDenied: false };
   }
 

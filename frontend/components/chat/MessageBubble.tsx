@@ -7,6 +7,7 @@ import { TypingIndicator } from './TypingIndicator';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ToolActivity } from './ToolActivity';
 import { CitationPanel } from './CitationPanel';
+import clsx from 'clsx';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -20,7 +21,6 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
   const isStopped = message.status === 'stopped';
   const isError = message.status === 'error';
 
-  // Citation slide-over state & trigger focus management
   const [selectedCitation, setSelectedCitation] = useState<ChatSource | null>(null);
   const [isCitationOpen, setIsCitationOpen] = useState(false);
   const chipRefs = useRef<{ [key: number]: HTMLButtonElement | null }>({});
@@ -46,124 +46,136 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
 
   return (
     <div
-      className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'} group transition-all`}
+      className={clsx(
+        'flex gap-3 w-full py-1',
+        isUser ? 'justify-end' : 'justify-start'
+      )}
     >
+      {/* Assistant Avatar Mark (28px clean neutral) */}
       {!isUser && (
         <div
           aria-hidden="true"
-          className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 border border-indigo-400/30 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/15"
+          className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 text-text-muted mt-0.5 shadow-subtle"
         >
-          <Bot className="w-4 h-4 text-white" />
+          <Bot className="w-3.5 h-3.5 text-accent" />
         </div>
       )}
 
-      <div className={`max-w-2xl space-y-2 ${isUser ? 'items-end' : 'items-start'} min-w-0`}>
-        <div
-          className={`p-4 rounded-2xl shadow-md transition-shadow ${
-            isUser
-              ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-tr-none text-xs leading-relaxed'
-              : 'bg-[#151d35] border border-slate-800/90 text-slate-200 rounded-tl-none'
-          }`}
-        >
-          {/* Tool Activity Status (rendered only when message used tools) */}
-          {!isUser && hasToolActivities && (
-            <ToolActivity activities={message.toolActivities} />
-          )}
-
-          {/* Assistant Message Body with smooth typing handover */}
-          {isWaiting ? (
-            hasToolActivities ? null : <TypingIndicator />
-          ) : isUser ? (
+      {/* Message Content Container */}
+      <div
+        className={clsx(
+          'flex flex-col min-w-0',
+          isUser ? 'max-w-[70%] items-end' : 'flex-1 max-w-full'
+        )}
+      >
+        {isUser ? (
+          /* User Message: surface-2, 1px border, radius 18px, crisp typography */
+          <div className="bg-surface-2 border border-border text-text-primary px-4 py-2.5 rounded-bubble text-chat leading-relaxed shadow-subtle">
             <p className="whitespace-pre-wrap">{message.text}</p>
-          ) : (
-            <MarkdownRenderer
-              content={message.text}
-              isStreaming={isStreaming}
-              sources={message.sources}
-              onOpenCitation={(src, triggerEl) => handleOpenCitation(src, undefined, triggerEl)}
-            />
-          )}
+          </div>
+        ) : (
+          /* Assistant Answer: renders clean prose directly on the background (no heavy card) */
+          <div className="w-full text-text-primary">
+            {/* Tool Activity Status Row */}
+            {hasToolActivities && (
+              <ToolActivity activities={message.toolActivities} />
+            )}
 
-          {/* Stopped indicator badge */}
-          {isStopped && (
-            <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] text-amber-400/90 font-medium">
-              <Square className="w-2.5 h-2.5 fill-current" />
-              <span>Generation stopped</span>
-            </div>
-          )}
-
-          {/* Inline Error Message + Retry Button */}
-          {isError && (
-            <div
-              role="alert"
-              className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-2 text-xs"
-            >
-              <div className="flex items-start gap-2 text-red-300">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                <span className="leading-snug">{message.error || 'Failed to complete response'}</span>
+            {/* Answer Body */}
+            {isWaiting ? (
+              hasToolActivities ? null : <TypingIndicator />
+            ) : (
+              <div className="py-0.5">
+                <MarkdownRenderer
+                  content={message.text}
+                  isStreaming={isStreaming}
+                  sources={message.sources}
+                  onOpenCitation={(src, triggerEl) => handleOpenCitation(src, undefined, triggerEl)}
+                />
               </div>
-              {onRetry && (
-                <button
-                  type="button"
-                  onClick={onRetry}
-                  aria-label="Retry generating answer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 rounded-lg text-[11px] font-semibold transition"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Retry
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+            )}
 
-        {/* Interactive Source Citation Chips */}
-        {message.sources && message.sources.length > 0 && (
-          <div
-            className="flex gap-2 flex-wrap pt-0.5"
-            aria-label="Cited sources"
-          >
-            {message.sources.map((src, i) => {
-              const title = src.documentTitle || 'Document';
-              const page = src.pageNumber;
-              const sim = typeof src.similarity === 'number' ? src.similarity : 0;
-              const percent = Math.round(sim * 100);
+            {/* Source Citation Chips */}
+            {message.sources && message.sources.length > 0 && (
+              <div
+                className="flex gap-1.5 flex-wrap pt-2.5"
+                aria-label="Cited sources"
+              >
+                {message.sources.map((src, i) => {
+                  const title = src.documentTitle || 'Document';
+                  const page = src.pageNumber;
+                  const sim = typeof src.similarity === 'number' ? src.similarity : 0;
+                  const percent = Math.round(sim * 100);
 
-              return (
-                <button
-                  key={i}
-                  ref={(el) => {
-                    chipRefs.current[i] = el;
-                  }}
-                  type="button"
-                  onClick={(e) => handleOpenCitation(src, i, e.currentTarget)}
-                  aria-label={`View citation for ${title}${page ? `, page ${page}` : ''}, ${percent}% match`}
-                  style={{ cursor: 'pointer' }}
-                  className="flex items-center gap-1.5 bg-[#0f1629] hover:bg-[#151f38] border border-indigo-500/30 hover:border-indigo-400/60 text-indigo-300 text-[10px] px-2.5 py-1.5 rounded-lg shadow-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 focus:ring-offset-[#0a0f1e] text-left"
-                >
-                  <BookOpen className="w-3 h-3 text-indigo-400 flex-shrink-0 cursor-pointer" aria-hidden="true" />
-                  <span className="font-semibold truncate max-w-[150px] cursor-pointer">{title}</span>
-                  {page != null && <span className="text-slate-500 cursor-pointer">p.{page}</span>}
-                  <span className="text-emerald-400 font-mono font-medium cursor-pointer">
-                    ({percent}%)
-                  </span>
-                </button>
-              );
-            })}
+                  return (
+                    <button
+                      key={i}
+                      ref={(el) => {
+                        chipRefs.current[i] = el;
+                      }}
+                      type="button"
+                      onClick={(e) => handleOpenCitation(src, i, e.currentTarget)}
+                      aria-label={`View citation for ${title}${page ? `, page ${page}` : ''}, ${percent}% match`}
+                      className="inline-flex items-center gap-1.5 bg-surface-1 hover:bg-surface-2 border border-border hover:border-border-strong text-text-secondary hover:text-text-primary text-[11px] px-2.5 py-1 rounded-control shadow-subtle transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-accent-border text-left"
+                    >
+                      <BookOpen className="w-3 h-3 text-text-muted flex-shrink-0" aria-hidden="true" />
+                      <span className="font-medium truncate max-w-[160px]">{title}</span>
+                      {page != null && <span className="text-text-muted">p.{page}</span>}
+                      <span className="text-text-muted font-mono tabular-nums text-[10px]">
+                        {percent}%
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Stopped Indicator */}
+            {isStopped && (
+              <div className="flex items-center gap-1.5 mt-2 pt-1.5 text-2xs text-text-muted font-medium">
+                <Square className="w-2.5 h-2.5 fill-current" />
+                <span>Generation stopped</span>
+              </div>
+            )}
+
+            {/* Inline Error Card with Retry */}
+            {isError && (
+              <div
+                role="alert"
+                className="mt-2.5 p-3 bg-danger/10 border border-danger/25 rounded-card space-y-2 text-xs text-text-primary"
+              >
+                <div className="flex items-start gap-2 text-danger">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span className="leading-snug">{message.error || 'Failed to complete response'}</span>
+                </div>
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    aria-label="Retry generating answer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-text-primary border border-border-strong rounded-control text-[11px] font-medium transition"
+                  >
+                    <RotateCcw className="w-3 h-3 text-text-muted" />
+                    <span>Retry</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* User Avatar Mark */}
       {isUser && (
         <div
           aria-hidden="true"
-          className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-md"
+          className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 text-text-muted mt-0.5 shadow-subtle"
         >
-          <User className="w-4 h-4 text-slate-300" />
+          <User className="w-3.5 h-3.5 text-text-muted" />
         </div>
       )}
 
-      {/* Accessible Citation Detail Panel */}
+      {/* Slide-over Citation Details Drawer */}
       <CitationPanel
         isOpen={isCitationOpen}
         onClose={() => setIsCitationOpen(false)}

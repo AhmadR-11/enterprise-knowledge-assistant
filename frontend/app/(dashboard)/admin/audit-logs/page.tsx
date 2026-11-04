@@ -10,9 +10,8 @@ import { toast } from 'sonner';
 const ACTIONS = ['', 'AUTH_LOGIN_SUCCESS', 'AUTH_LOGIN_FAILURE', 'AUTH_REGISTER_SUCCESS', 'CHAT_QUERY', 'DOCUMENT_UPLOAD', 'DOCUMENT_DELETE'];
 
 function ActionBadge({ action, success }: { action: string; success: boolean }) {
-  const isSuccess = success;
   return (
-    <span className={`badge text-[10px] px-2 py-0.5 rounded-md border ${isSuccess ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+    <span className={`badge text-[10px] font-mono px-2 py-0.5 rounded-control ${success ? 'badge-ready' : 'badge-failed'}`}>
       {action.replace(/_/g, ' ')}
     </span>
   );
@@ -55,66 +54,68 @@ export default function AuditLogsPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.2 }}
       className="p-6 max-w-6xl mx-auto space-y-6"
     >
       <div>
-        <h1 className="text-2xl font-bold text-white tracking-wide">Audit & Security Logs</h1>
-        <p className="text-slate-400 text-sm mt-1">{total.toLocaleString()} total audit events logged</p>
+        <h1 className="text-xl font-semibold text-text-primary tracking-tight">Audit & Security Logs</h1>
+        <p className="text-text-muted text-xs mt-0.5">
+          <span className="font-mono tabular-nums">{total.toLocaleString()}</span> total audit events logged
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="card shadow-lg border-slate-800/80 bg-[#0f1629]">
+      {/* Filters Box */}
+      <div className="card shadow-subtle border-border bg-surface-1 p-4 rounded-card">
         <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-indigo-400" />
-          <span className="text-sm font-semibold text-white">Log Filters</span>
+          <Filter className="w-3.5 h-3.5 text-text-muted" />
+          <span className="text-xs font-semibold text-text-primary">Log Filters</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="label text-xs font-semibold text-slate-400 mb-1">User Email</label>
-            <input className="input bg-[#151d35] border-slate-700 text-xs" placeholder="user@company.com" value={email} onChange={e => setEmail(e.target.value)} />
+            <label className="label">User Email</label>
+            <input className="input text-xs" placeholder="user@company.com" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <div>
-            <label className="label text-xs font-semibold text-slate-400 mb-1">Event Action</label>
-            <select className="input bg-[#151d35] border-slate-700 text-xs" value={action} onChange={e => setAction(e.target.value)}>
+            <label className="label">Event Action</label>
+            <select className="input text-xs" value={action} onChange={e => setAction(e.target.value)}>
               {ACTIONS.map(a => <option key={a} value={a}>{a || 'All actions'}</option>)}
             </select>
           </div>
           <div>
-            <label className="label text-xs font-semibold text-slate-400 mb-1">Start Date</label>
-            <input className="input bg-[#151d35] border-slate-700 text-xs" type="date" value={startDate} onChange={e => setStart(e.target.value)} />
+            <label className="label">Start Date</label>
+            <input className="input text-xs" type="date" value={startDate} onChange={e => setStart(e.target.value)} />
           </div>
           <div>
-            <label className="label text-xs font-semibold text-slate-400 mb-1">End Date</label>
-            <input className="input bg-[#151d35] border-slate-700 text-xs" type="date" value={endDate} onChange={e => setEnd(e.target.value)} />
+            <label className="label">End Date</label>
+            <input className="input text-xs" type="date" value={endDate} onChange={e => setEnd(e.target.value)} />
           </div>
         </div>
-        <div className="flex gap-2.5 mt-4 pt-3 border-t border-slate-800/60">
-          <button onClick={applyFilters} className="btn-primary text-xs px-4 py-2 rounded-xl shadow-md">Apply Filters</button>
-          <button onClick={clearFilters} className="btn-ghost text-xs px-4 py-2 rounded-xl border border-slate-700/80">Clear Filters</button>
+        <div className="flex gap-2.5 mt-3.5 pt-3 border-t border-border">
+          <button type="button" onClick={applyFilters} className="btn-primary text-xs px-3.5 py-1.5">Apply Filters</button>
+          <button type="button" onClick={clearFilters} className="btn-ghost text-xs px-3.5 py-1.5 border border-border text-text-secondary hover:text-text-primary">Clear Filters</button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="card p-0 overflow-hidden shadow-xl">
+      <div className="card p-0 overflow-hidden shadow-subtle rounded-card border border-border">
         <table className="w-full">
-          <thead className="bg-[#0a0f1e]/80 border-b border-slate-800">
+          <thead className="bg-surface-1 border-b border-border">
             <tr>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">User Email</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Action Type</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">IP Address</th>
-              <th className="th py-3.5 px-4 text-xs font-semibold text-slate-400">Timestamp</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">User Email</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Action Type</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">IP Address</th>
+              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Timestamp</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-border">
             {loading ? (
               <tr><td colSpan={4} className="td text-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-400" />
+                <Loader2 className="w-5 h-5 animate-spin mx-auto text-accent" />
               </td></tr>
             ) : logs.length === 0 ? (
-              <tr><td colSpan={4} className="td text-center py-12 text-slate-500 text-sm">No audit logs match the current filters</td></tr>
+              <tr><td colSpan={4} className="td text-center py-12 text-text-muted text-xs">No audit logs match the current filters</td></tr>
             ) : (
               <AnimatePresence>
                 {logs.map(log => (
@@ -123,12 +124,12 @@ export default function AuditLogsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="table-row hover:bg-slate-800/40 transition-colors"
+                    className="table-row hover:bg-surface-2 transition-colors"
                   >
-                    <td className="td py-3.5 px-4 text-white font-medium text-xs">{log.email}</td>
-                    <td className="td py-3.5 px-4"><ActionBadge action={log.action} success={log.success} /></td>
-                    <td className="td py-3.5 px-4 text-slate-500 text-xs font-mono">{log.ip || '—'}</td>
-                    <td className="td py-3.5 px-4 text-slate-500 text-xs whitespace-nowrap font-mono">
+                    <td className="td py-3 px-4 text-text-primary font-medium text-xs">{log.email}</td>
+                    <td className="td py-3 px-4"><ActionBadge action={log.action} success={log.success} /></td>
+                    <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">{log.ip || '—'}</td>
+                    <td className="td py-3 px-4 text-text-muted text-xs whitespace-nowrap font-mono tabular-nums">
                       {format(new Date(log.timestamp), 'MMM d, yyyy HH:mm:ss')}
                     </td>
                   </motion.tr>
@@ -141,22 +142,24 @@ export default function AuditLogsPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-xs text-slate-500">
-            Page <strong className="text-white">{page}</strong> of {totalPages}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-text-muted font-mono tabular-nums">
+            Page <strong className="text-text-primary">{page}</strong> of {totalPages}
           </span>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="btn-ghost px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs disabled:opacity-30 flex items-center gap-1"
+              className="btn-ghost px-2.5 py-1 rounded-control border border-border text-xs disabled:opacity-30 flex items-center gap-1"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Previous
             </button>
             <button
+              type="button"
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="btn-ghost px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs disabled:opacity-30 flex items-center gap-1"
+              className="btn-ghost px-2.5 py-1 rounded-control border border-border text-xs disabled:opacity-30 flex items-center gap-1"
             >
               Next <ChevronRight className="w-3.5 h-3.5" />
             </button>

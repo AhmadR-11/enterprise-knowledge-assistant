@@ -12,27 +12,27 @@ const containerVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.08 }
+    transition: { staggerChildren: 0.05 }
   }
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 15 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2 } }
 };
 
-function StatCard({ icon: Icon, label, value, color }: {
-  icon: React.ElementType; label: string; value: number | string; color: string;
+function StatCard({ icon: Icon, label, value }: {
+  icon: React.ElementType; label: string; value: number | string;
 }) {
   return (
     <motion.div variants={itemVariants} className="card card-hover">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-1">{label}</p>
-          <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
+          <p className="text-2xs font-semibold text-text-muted uppercase tracking-wider mb-1">{label}</p>
+          <p className="text-2xl font-bold text-text-primary font-mono tabular-nums tracking-tight">{value}</p>
         </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color} shadow-inner`}>
-          <Icon className="w-5 h-5" />
+        <div className="w-9 h-9 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-muted shadow-subtle">
+          <Icon className="w-4 h-4" />
         </div>
       </div>
     </motion.div>
@@ -40,22 +40,24 @@ function StatCard({ icon: Icon, label, value, color }: {
 }
 
 function ActionBadge({ action }: { action: string }) {
-  const colors: Record<string, string> = {
-    AUTH_LOGIN_SUCCESS:  'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    AUTH_LOGIN_FAILURE:  'bg-red-500/20 text-red-300 border-red-500/30',
-    AUTH_REGISTER_SUCCESS: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    DOCUMENT_UPLOAD:     'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-    DOCUMENT_DELETE:     'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  };
+  const isSuccess = action.includes('SUCCESS') || action === 'DOCUMENT_UPLOAD';
+  const isFailure = action.includes('FAILURE') || action === 'DOCUMENT_DELETE';
+  const isWarning = action.includes('WARNING');
+
+  let style = 'badge bg-surface-2 text-text-secondary border-border';
+  if (isSuccess) style = 'badge bg-success/10 text-success border-success/20';
+  if (isFailure) style = 'badge bg-danger/10 text-danger border-danger/20';
+  if (isWarning) style = 'badge bg-warning/10 text-warning border-warning/20';
+
   return (
-    <span className={`badge border text-[11px] px-2 py-0.5 rounded-md ${colors[action] || 'bg-slate-500/20 text-slate-300 border-slate-700'}`}>
+    <span className={`${style} text-[10px] font-mono px-2 py-0.5 rounded-control`}>
       {action.replace(/_/g, ' ')}
     </span>
   );
 }
 
 export default function DashboardPage() {
-  const [stats, setStats]   = useState<Stats | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -77,7 +79,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-full min-h-[50vh]">
-      <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
@@ -89,9 +91,9 @@ export default function DashboardPage() {
     : [];
 
   const BAR_COLORS: Record<string, string> = {
-    READY: '#10b981',
-    PROCESSING: '#6366f1',
-    FAILED: '#ef4444'
+    READY: '#2DD4BF', // Accent
+    PROCESSING: '#FBBF24', // Warning
+    FAILED: '#F87171' // Danger
   };
 
   return (
@@ -103,60 +105,66 @@ export default function DashboardPage() {
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-wide">Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">Real-time system metrics, analytics & recent activity</p>
+          <h1 className="text-xl font-semibold text-text-primary tracking-tight">Dashboard</h1>
+          <p className="text-text-muted text-xs mt-0.5">Real-time system metrics, analytics & recent activity</p>
         </div>
         <button
+          type="button"
           onClick={() => fetchStats(true)}
           disabled={refreshing}
-          className="btn-ghost flex items-center gap-2 text-xs bg-slate-800/60 border border-slate-700/60 rounded-xl hover:bg-slate-700/60 transition"
+          className="btn-ghost flex items-center gap-1.5 text-xs bg-surface-2 border border-border rounded-control hover:bg-surface-3 transition py-1.5 px-3"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-indigo-400' : ''}`} />
-          Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-accent' : 'text-text-muted'}`} />
+          <span>Refresh</span>
         </button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={FileText}       label="Total Documents" value={stats?.totalDocuments ?? 0} color="bg-indigo-500/20 text-indigo-400" />
-        <StatCard icon={MessageSquare}  label="Total Queries"   value={stats?.totalQueries ?? 0}   color="bg-emerald-500/20 text-emerald-400" />
-        <StatCard icon={Users}          label="Active Users"    value={stats?.activeUsers ?? 0}     color="bg-amber-500/20 text-amber-400" />
-        <StatCard icon={Building2}      label="Spaces"          value={stats?.documentsBySpace?.length ?? 0} color="bg-purple-500/20 text-purple-400" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <StatCard icon={FileText} label="Total Documents" value={stats?.totalDocuments ?? 0} />
+        <StatCard icon={MessageSquare} label="Total Queries" value={stats?.totalQueries ?? 0} />
+        <StatCard icon={Users} label="Active Users" value={stats?.activeUsers ?? 0} />
+        <StatCard icon={Building2} label="Spaces" value={stats?.documentsBySpace?.length ?? 0} />
       </div>
 
       {/* Visual Analytics Chart + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Document Status Analytics Chart */}
         <motion.div variants={itemVariants} className="card flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-400" />
-              <h2 className="font-semibold text-white text-sm">Document Ingestion Analytics</h2>
+              <TrendingUp className="w-4 h-4 text-accent" />
+              <h2 className="font-semibold text-text-primary text-xs tracking-tight">Document Ingestion Analytics</h2>
             </div>
-            <span className="text-[11px] text-slate-500 font-medium">By Status</span>
+            <span className="text-[11px] text-text-muted font-medium">By Status</span>
           </div>
 
           {chartData.length > 0 ? (
-            <div className="h-64 w-full pt-4">
+            <div className="h-60 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="status" stroke="#64748b" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} tickLine={false} />
+                  <XAxis dataKey="status" stroke="#6B7280" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#6B7280" fontSize={11} allowDecimals={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f1629', borderColor: '#334155', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
-                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                    contentStyle={{
+                      backgroundColor: 'var(--surface-1)',
+                      borderColor: 'var(--border-strong)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '12px'
+                    }}
+                    cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }}
                   />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={BAR_COLORS[entry.status] || '#6366f1'} />
+                      <Cell key={`cell-${index}`} fill={BAR_COLORS[entry.status] || '#2DD4BF'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500 text-sm py-12">
+            <div className="flex-1 flex items-center justify-center text-text-muted text-xs py-12">
               No document statistics available
             </div>
           )}
@@ -166,30 +174,30 @@ export default function DashboardPage() {
         <motion.div variants={itemVariants} className="card flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-indigo-400" />
-              <h2 className="font-semibold text-white text-sm">Recent System Activity</h2>
+              <Clock className="w-4 h-4 text-text-muted" />
+              <h2 className="font-semibold text-text-primary text-xs tracking-tight">Recent System Activity</h2>
             </div>
-            <span className="text-[11px] text-slate-500 font-medium">Audit Stream</span>
+            <span className="text-[11px] text-text-muted font-medium">Audit Stream</span>
           </div>
 
           {stats?.recentActivity?.length ? (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-2 flex-1 overflow-y-auto pr-1 max-h-60">
               {stats.recentActivity.map((log: AuditLog) => (
-                <div key={log._id} className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-[#151d35]/50 border border-slate-800/60 hover:border-slate-700/60 transition">
+                <div key={log._id} className="flex items-center justify-between gap-3 p-2 rounded-control bg-surface-2 border border-border hover:border-border-strong transition">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-200 truncate">{log.email}</p>
-                    <div className="mt-1">
+                    <p className="text-xs font-medium text-text-primary truncate">{log.email}</p>
+                    <div className="mt-0.5">
                       <ActionBadge action={log.action} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap">
+                  <span className="text-[10px] text-text-muted font-mono whitespace-nowrap tabular-nums">
                     {log.timestamp ? format(new Date(log.timestamp), 'MMM d, HH:mm') : ''}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500 text-sm py-12">
+            <div className="flex-1 flex items-center justify-center text-text-muted text-xs py-12">
               No recent audit activity
             </div>
           )}

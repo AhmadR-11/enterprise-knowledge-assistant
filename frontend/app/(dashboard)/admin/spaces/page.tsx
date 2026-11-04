@@ -114,35 +114,39 @@ export default function SpacesPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      transition={{ duration: 0.2 }}
       className="p-6 max-w-5xl mx-auto space-y-6"
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-wide">Knowledge Spaces</h1>
-          <p className="text-slate-400 text-sm mt-1">{spaces.length} logical knowledge spaces configured</p>
+          <h1 className="text-xl font-semibold text-text-primary tracking-tight">Knowledge Spaces</h1>
+          <p className="text-text-muted text-xs mt-0.5">
+            <span className="font-mono tabular-nums">{spaces.length}</span> logical knowledge spaces configured
+          </p>
         </div>
         <button
+          type="button"
           onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20"
+          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2"
         >
-          <Plus className="w-4 h-4" /> New Space
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>New Space</span>
         </button>
       </div>
 
-      {/* Create inline */}
+      {/* Inline Create Row */}
       <AnimatePresence>
         {showCreate && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="card border-indigo-500/40 bg-[#151d35]/60 flex gap-3 shadow-xl overflow-hidden"
+            className="card border border-border-strong bg-surface-2 flex gap-2.5 shadow-subtle p-3 rounded-card overflow-hidden"
           >
             <input
-              className="input flex-1 bg-[#0f1629] border-slate-700 text-sm"
+              className="input flex-1 text-xs"
               placeholder="Enter space name..."
               value={newName}
               onChange={e => setNewName(e.target.value)}
@@ -150,16 +154,18 @@ export default function SpacesPage() {
               autoFocus
             />
             <button
+              type="button"
               onClick={createSpace}
               disabled={creating}
-              className="btn-primary flex items-center gap-1.5 text-xs px-4 rounded-xl shadow-md"
+              className="btn-primary flex items-center gap-1.5 text-xs px-3.5"
             >
               {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              Create
+              <span>Create</span>
             </button>
             <button
+              type="button"
               onClick={() => setShowCreate(false)}
-              className="btn-ghost px-3 rounded-xl border border-slate-700/60 text-slate-400 hover:text-white"
+              className="btn-ghost px-2.5 border border-border text-text-muted hover:text-text-primary"
             >
               <X className="w-4 h-4" />
             </button>
@@ -167,64 +173,70 @@ export default function SpacesPage() {
         )}
       </AnimatePresence>
 
-      {/* Spaces grid */}
+      {/* Spaces Grid */}
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
       ) : spaces.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 text-sm">No spaces created yet. Click "New Space" above to get started.</div>
+        <div className="text-center py-16 text-text-muted text-xs">No spaces created yet. Click "New Space" above to get started.</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           <AnimatePresence>
             {spaces.map(space => (
               <motion.div
                 key={space.id}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                exit={{ opacity: 0, scale: 0.98 }}
                 whileHover={{ y: -2 }}
-                className="card card-hover flex flex-col gap-3 border-slate-800/80 bg-[#0f1629] shadow-xl"
+                className="card card-hover flex flex-col justify-between gap-3 border border-border bg-surface-1 shadow-subtle p-4"
               >
                 {editId === space.id ? (
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <input
-                      className="input flex-1 text-sm bg-[#151d35] border-slate-700"
+                      className="input flex-1 text-xs"
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
                       autoFocus
                       onKeyDown={e => e.key === 'Enter' && renameSpace(space.id)}
                     />
-                    <button onClick={() => renameSpace(space.id)} className="text-emerald-400 hover:text-emerald-300 p-1.5"><Check className="w-4 h-4" /></button>
-                    <button onClick={() => setEditId(null)} className="text-slate-500 hover:text-slate-300 p-1.5"><X className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => renameSpace(space.id)} className="text-accent hover:brightness-110 p-1.5"><Check className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => setEditId(null)} className="text-text-muted hover:text-text-primary p-1.5"><X className="w-4 h-4" /></button>
                   </div>
                 ) : (
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-600/15 border border-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Building2 className="w-4 h-4 text-indigo-400" />
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 mt-0.5 text-text-muted">
+                        <Building2 className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-white text-base tracking-tight">{space.name}</h3>
-                        {space.description && <p className="text-xs text-slate-500 mt-0.5">{space.description}</p>}
+                        <h3 className="font-semibold text-text-primary text-xs tracking-tight">{space.name}</h3>
+                        {space.description && <p className="text-[11px] text-text-muted mt-0.5 line-clamp-2">{space.description}</p>}
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => { setEditId(space.id); setEditName(space.name); }}
-                      className="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition"
+                      className="text-text-muted hover:text-text-primary p-1 rounded-control hover:bg-surface-2 transition"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Pencil className="w-3 h-3" />
                     </button>
                   </div>
                 )}
-                <div className="flex gap-2.5 mt-auto pt-2 border-t border-slate-800/60">
+
+                <div className="flex gap-2 pt-2 border-t border-border mt-auto">
                   <button
+                    type="button"
                     onClick={() => openAssign(space)}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs btn-ghost border border-slate-700/80 py-2 rounded-xl hover:border-indigo-500/50 hover:text-indigo-300 transition"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs btn-ghost border border-border py-1.5 rounded-control text-text-secondary hover:text-text-primary"
                   >
-                    <Users className="w-3.5 h-3.5 text-indigo-400" /> Manage Members
+                    <Users className="w-3.5 h-3.5 text-text-muted" />
+                    <span>Manage Members</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => deleteSpace(space.id, space.name)}
-                    className="btn-danger p-2 rounded-xl hover:bg-red-500/20 hover:text-red-400 transition"
+                    className="btn-danger p-1.5 rounded-control"
+                    title="Delete space"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -235,40 +247,40 @@ export default function SpacesPage() {
         </div>
       )}
 
-      {/* Premium Animated Members Modal */}
+      {/* Members Modal */}
       <AnimatePresence>
         {assignModal && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 15 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-              className="card w-full max-w-md border border-slate-700/80 bg-[#0f1629]/95 backdrop-blur-2xl shadow-2xl p-6 rounded-2xl"
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card"
             >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-800/80">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shadow-md">
-                    <Users className="w-4 h-4 text-indigo-400" />
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center text-accent">
+                    <Users className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-white text-base tracking-tight">{assignModal.name}</h2>
-                    <p className="text-[11px] text-slate-400 font-medium">Manage Member Access</p>
+                    <h2 className="font-semibold text-text-primary text-xs tracking-tight">{assignModal.name}</h2>
+                    <p className="text-[10px] text-text-muted">Manage Member Access</p>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setAssignModal(null)}
-                  className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800/60 transition"
+                  className="text-text-muted hover:text-text-primary p-1 rounded-control"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Add Member Dropdown & Button */}
-              <div className="flex gap-2.5 mb-5">
+              <div className="flex gap-2 mb-4">
                 <select
-                  className="input flex-1 text-xs bg-[#151d35] border-slate-700/80 text-slate-200 focus:border-indigo-500 rounded-xl"
+                  className="input flex-1 text-xs"
                   value={selectedUser}
                   onChange={e => setSelectedUser(e.target.value)}
                 >
@@ -278,36 +290,38 @@ export default function SpacesPage() {
                   ))}
                 </select>
                 <button
+                  type="button"
                   onClick={assignUser}
                   disabled={!selectedUser}
-                  className="btn-primary text-xs px-3.5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 disabled:opacity-40"
+                  className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
                 >
-                  <UserPlus className="w-4 h-4" />
+                  <UserPlus className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {/* Current Members List */}
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {spaceUsers.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 text-xs bg-[#151d35]/40 rounded-xl border border-slate-800/50">
+                  <div className="text-center py-8 text-text-muted text-xs bg-surface-2/40 rounded-control border border-border">
                     No members assigned to this space yet
                   </div>
                 ) : (
                   spaceUsers.map(u => (
                     <div
                       key={u.id}
-                      className="flex items-center justify-between px-3.5 py-2.5 bg-[#151d35]/90 border border-slate-800/80 rounded-xl hover:border-slate-700/80 transition"
+                      className="flex items-center justify-between px-3 py-2 bg-surface-2 border border-border rounded-control hover:border-border-strong transition"
                     >
                       <div>
-                        <p className="text-xs font-semibold text-white">{u.email}</p>
-                        <span className="text-[10px] text-indigo-400 capitalize font-medium">{u.role}</span>
+                        <p className="text-xs font-medium text-text-primary">{u.email}</p>
+                        <span className="text-[10px] text-text-muted capitalize">{u.role}</span>
                       </div>
                       <button
+                        type="button"
                         onClick={() => removeUser(u.id)}
-                        className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition"
+                        className="text-text-muted hover:text-danger p-1 rounded-control transition"
                         title="Remove from space"
                       >
-                        <UserMinus className="w-4 h-4" />
+                        <UserMinus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))

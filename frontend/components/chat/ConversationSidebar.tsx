@@ -1,21 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  MessageSquare,
   Plus,
   Trash2,
   Edit2,
   Check,
   X,
   Loader2,
-  Clock,
-  AlertCircle
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Conversation } from '@/types';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import clsx from 'clsx';
 
 export interface ConversationSidebarProps {
   activeId: string | null;
@@ -26,9 +25,6 @@ export interface ConversationSidebarProps {
   refreshTrigger?: number;
 }
 
-/**
- * Formats ISO date string to a concise relative time string.
- */
 function formatRelativeTime(dateString: string): string {
   try {
     const date = new Date(dateString);
@@ -40,10 +36,10 @@ function formatRelativeTime(dateString: string): string {
     const diffDay = Math.floor(diffHour / 24);
 
     if (diffSec < 60) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHour < 24) return `${diffHour}h ago`;
+    if (diffMin < 60) return `${diffMin}m`;
+    if (diffHour < 24) return `${diffHour}h`;
     if (diffDay === 1) return 'Yesterday';
-    if (diffDay < 7) return `${diffDay}d ago`;
+    if (diffDay < 7) return `${diffDay}d`;
 
     return date.toLocaleDateString(undefined, {
       month: 'short',
@@ -52,6 +48,38 @@ function formatRelativeTime(dateString: string): string {
   } catch {
     return '';
   }
+}
+
+interface ConversationGroup {
+  label: string;
+  items: Conversation[];
+}
+
+function groupConversations(list: Conversation[]): ConversationGroup[] {
+  const today: Conversation[] = [];
+  const yesterday: Conversation[] = [];
+  const earlier: Conversation[] = [];
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+
+  for (const c of list) {
+    const time = new Date(c.updated_at || c.created_at).getTime();
+    if (time >= todayStart) {
+      today.push(c);
+    } else if (time >= yesterdayStart) {
+      yesterday.push(c);
+    } else {
+      earlier.push(c);
+    }
+  }
+
+  return [
+    { label: 'Today', items: today },
+    { label: 'Yesterday', items: yesterday },
+    { label: 'Earlier', items: earlier },
+  ].filter((g) => g.items.length > 0);
 }
 
 export function ConversationSidebar({
@@ -171,23 +199,24 @@ export function ConversationSidebar({
     }
   };
 
-  const content = (
-    <div className="flex flex-col h-full bg-[#0a0f1e] border-r border-slate-800/80 w-72 md:w-80 flex-shrink-0 select-none">
-      {/* Header & New Chat button */}
-      <div className="p-3.5 border-b border-slate-800/80 space-y-3">
+  const grouped = useMemo(() => groupConversations(conversations), [conversations]);
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-sidebar border-r border-border w-[264px] flex-shrink-0 select-none">
+      {/* Top Action Header */}
+      <div className="p-3 border-b border-border space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-indigo-400" />
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Chat History
-            </h2>
+            <MessageSquare className="w-3.5 h-3.5 text-text-muted" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              History
+            </span>
           </div>
           {isOpenMobile && (
             <button
               type="button"
               onClick={onCloseMobile}
-              style={{ cursor: 'pointer' }}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition md:hidden"
+              className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition md:hidden"
               aria-label="Close conversation list"
             >
               <X className="w-4 h-4" />
@@ -195,202 +224,187 @@ export function ConversationSidebar({
           )}
         </div>
 
+        {/* Clean 36px Accent-Fill "New chat" button */}
         <button
           type="button"
           onClick={() => {
             onNewChat();
             if (isOpenMobile) onCloseMobile();
           }}
-          style={{ cursor: 'pointer' }}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/15 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 focus:ring-offset-[#0a0f1e]"
+          className="w-full h-9 flex items-center justify-center gap-2 bg-accent-fill hover:brightness-105 active:scale-[0.98] text-accent-text font-medium text-xs rounded-control shadow-subtle transition-all duration-150"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Chat</span>
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>New chat</span>
         </button>
       </div>
 
-      {/* Conversations List */}
-      <div
-        role="navigation"
-        aria-label="Previous chat conversations"
-        className="flex-1 overflow-y-auto p-2 space-y-1"
-      >
-        {loading && (
-          <div className="p-4 space-y-2.5">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />
-            ))}
+      {/* Conversations Scroll Area */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-10 text-text-muted gap-2 text-xs">
+            <Loader2 className="w-4 h-4 animate-spin text-accent" />
+            <span>Loading chats…</span>
           </div>
-        )}
-
-        {!loading && error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300 space-y-2">
-            <div className="flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
+        ) : error ? (
+          <div className="p-3 text-center text-xs text-danger/90 bg-danger/10 border border-danger/20 rounded-card m-2">
+            <p>{error}</p>
             <button
               type="button"
               onClick={fetchConversations}
-              style={{ cursor: 'pointer' }}
-              className="text-[11px] underline hover:text-red-200"
+              className="mt-2 text-2xs text-text-primary underline hover:no-underline"
             >
-              Retry loading
+              Retry
             </button>
           </div>
-        )}
-
-        {!loading && !error && conversations.length === 0 && (
-          <div className="py-12 px-4 text-center space-y-2">
-            <div className="w-10 h-10 mx-auto rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500">
-              <MessageSquare className="w-5 h-5" />
-            </div>
-            <p className="text-xs font-medium text-slate-400">No conversations yet</p>
-            <p className="text-[11px] text-slate-500">
-              Your saved chats and answers will appear here.
+        ) : conversations.length === 0 ? (
+          <div className="text-center py-12 px-3 text-text-muted">
+            <p className="text-xs">No conversations yet</p>
+            <p className="text-[11px] mt-1 text-text-muted/80">
+              Messages will be saved here automatically.
             </p>
           </div>
-        )}
+        ) : (
+          grouped.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((conv) => {
+                  const isActive = activeId === conv.id;
+                  const isEditing = editingId === conv.id;
+                  const isDeleting = deletingId === conv.id;
 
-        {!loading &&
-          !error &&
-          conversations.map((conv) => {
-            const isActive = conv.id === activeId;
-            const isEditing = editingId === conv.id;
-            const isDeleting = deletingId === conv.id;
-
-            return (
-              <div
-                key={conv.id}
-                onClick={() => {
-                  if (!isEditing && !isDeleting) {
-                    onSelectConversation(conv.id);
-                    if (isOpenMobile) onCloseMobile();
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-                className={`group relative flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer text-left border ${
-                  isActive
-                    ? 'bg-[#151d35] border-indigo-500/50 text-white shadow-sm shadow-indigo-500/5'
-                    : 'bg-transparent border-transparent hover:bg-slate-800/40 text-slate-300 hover:text-white'
-                }`}
-              >
-                {/* Active left indicator bar */}
-                {isActive && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute left-0 top-2 bottom-2 w-1 bg-indigo-500 rounded-r-full"
-                  />
-                )}
-
-                <div className="min-w-0 flex-1 pr-2">
-                  {isEditing ? (
-                    <form
-                      onSubmit={(e) => handleSaveRename(conv.id, e)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1"
-                    >
-                      <input
-                        ref={editInputRef}
-                        type="text"
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        className="w-full bg-[#0a0f1e] border border-indigo-500 text-xs px-2 py-1 rounded text-white focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        style={{ cursor: 'pointer' }}
-                        className="p-1 text-emerald-400 hover:text-emerald-300"
-                        title="Save"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancelRename}
-                        style={{ cursor: 'pointer' }}
-                        className="p-1 text-slate-400 hover:text-white"
-                        title="Cancel"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
-                  ) : isDeleting ? (
+                  return (
                     <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center justify-between gap-1 text-[11px] text-red-300 py-0.5"
-                    >
-                      <span className="truncate">Delete chat?</span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => handleConfirmDelete(conv.id, e)}
-                          style={{ cursor: 'pointer' }}
-                          className="px-1.5 py-0.5 bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 rounded text-[10px] font-semibold"
-                        >
-                          Yes
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingId(null);
-                          }}
-                          style={{ cursor: 'pointer' }}
-                          className="px-1.5 py-0.5 text-slate-400 hover:text-white text-[10px]"
-                        >
-                          No
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-xs font-medium truncate leading-snug">
-                        {conv.title}
-                      </p>
-                      <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500">
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>{formatRelativeTime(conv.updated_at)}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Action buttons (Rename & Delete) on hover or active */}
-                {!isEditing && !isDeleting && (
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => handleStartRename(conv, e)}
-                      style={{ cursor: 'pointer' }}
-                      title="Rename conversation"
-                      aria-label={`Rename ${conv.title}`}
-                      className="p-1 rounded-md text-slate-400 hover:text-indigo-300 hover:bg-slate-700/60 transition"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingId(conv.id);
-                        setEditingId(null);
+                      key={conv.id}
+                      onClick={() => {
+                        if (!isEditing && !isDeleting) {
+                          onSelectConversation(conv.id);
+                          if (isOpenMobile) onCloseMobile();
+                        }
                       }}
-                      style={{ cursor: 'pointer' }}
-                      title="Delete conversation"
-                      aria-label={`Delete ${conv.title}`}
-                      className="p-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-slate-700/60 transition"
+                      className={clsx(
+                        'group relative flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-control text-xs cursor-pointer transition-all duration-150',
+                        isActive
+                          ? 'bg-surface-2 text-text-primary font-medium shadow-subtle'
+                          : 'text-text-secondary hover:text-text-primary hover:bg-surface-1'
+                      )}
                     >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
+                      {/* Active Left 2px Accent Indicator */}
+                      {isActive && (
+                        <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r-full" />
+                      )}
+
+                      {/* Title or Inline Edit */}
+                      <div className="flex-1 min-w-0 pr-1">
+                        {isEditing ? (
+                          <form
+                            onSubmit={(e) => handleSaveRename(conv.id, e)}
+                            className="flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              ref={editInputRef}
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                              className="w-full bg-surface-3 border border-accent text-xs px-2 py-0.5 rounded text-text-primary focus:outline-none"
+                            />
+                            <button
+                              type="submit"
+                              className="p-1 text-accent hover:text-accent/80"
+                              title="Save"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelRename}
+                              className="p-1 text-text-muted hover:text-text-primary"
+                              title="Cancel"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </form>
+                        ) : (
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="truncate block flex-1 text-xs">
+                              {conv.title}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono tabular-nums flex-shrink-0 group-hover:hidden">
+                              {formatRelativeTime(conv.updated_at || conv.created_at)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Icons (visible on hover / focus) */}
+                      {!isEditing && (
+                        <div className="hidden group-hover:flex group-focus-within:flex items-center gap-0.5 flex-shrink-0">
+                          {isDeleting ? (
+                            <div
+                              className="flex items-center gap-1 bg-surface-3 border border-border px-1.5 py-0.5 rounded"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="text-[10px] text-danger font-medium">Delete?</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleConfirmDelete(conv.id, e)}
+                                className="p-0.5 text-danger hover:brightness-110"
+                                title="Confirm delete"
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingId(null);
+                                }}
+                                className="p-0.5 text-text-muted hover:text-text-primary"
+                                title="Cancel"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => handleStartRename(conv, e)}
+                                className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-3 transition"
+                                title="Rename conversation"
+                                aria-label="Rename conversation"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingId(conv.id);
+                                }}
+                                className="p-1 rounded text-text-muted hover:text-danger hover:bg-danger/10 transition"
+                                title="Delete conversation"
+                                aria-label="Delete conversation"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -398,14 +412,12 @@ export function ConversationSidebar({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex h-full flex-col">
-        {content}
-      </aside>
+      <div className="hidden md:block h-full flex-shrink-0">{sidebarContent}</div>
 
-      {/* Mobile Slide-Over Drawer */}
+      {/* Mobile Drawer */}
       <AnimatePresence>
         {isOpenMobile && (
-          <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="fixed inset-0 z-40 md:hidden flex">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -415,16 +427,15 @@ export function ConversationSidebar({
               className="fixed inset-0 bg-black/60 backdrop-blur-sm"
               aria-hidden="true"
             />
-
-            {/* Slide-over Panel */}
+            {/* Drawer */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-              className="relative z-10 h-full shadow-2xl"
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative z-50 h-full"
             >
-              {content}
+              {sidebarContent}
             </motion.div>
           </div>
         )}
@@ -432,4 +443,3 @@ export function ConversationSidebar({
     </>
   );
 }
-

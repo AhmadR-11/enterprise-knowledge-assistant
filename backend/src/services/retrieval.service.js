@@ -49,17 +49,18 @@ async function getOrGenerateQueryEmbedding(queryText) {
   const cacheKey = getEmbeddingCacheKey(normalized, EMBEDDING_MODEL);
 
   // 1. Attempt cache lookup
-  try {
-    const cached = await cacheService.getJSON(cacheKey);
-    if (cached && Array.isArray(cached) && cached.length > 0) {
-      console.debug(`[EmbeddingCache] HIT: "${normalized.slice(0, 40)}" -> ${cacheKey}`);
-      return cached;
+  if (cacheService.isReady()) {
+    try {
+      const cached = await cacheService.getJSON(cacheKey);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        console.debug(`[EmbeddingCache] HIT: "${normalized.slice(0, 40)}" -> ${cacheKey}`);
+        return cached;
+      }
+    } catch (err) {
+      // Fail-open: continue to live generation
     }
-  } catch (err) {
-    // Fail-open: continue to live generation
+    console.debug(`[EmbeddingCache] MISS: "${normalized.slice(0, 40)}" -> ${cacheKey}`);
   }
-
-  console.debug(`[EmbeddingCache] MISS: "${normalized.slice(0, 40)}" -> ${cacheKey}`);
 
   // 2. Generate embedding using Gemini gemini-embedding-001 (768-dim)
   const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });

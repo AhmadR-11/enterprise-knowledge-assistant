@@ -50,43 +50,39 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-[#0a0f1e] relative overflow-hidden">
-      {/* Animated Background Glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <motion.div
-          animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.25, 0.15] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-full blur-[120px]"
-        />
-      </div>
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg relative overflow-hidden select-none">
+      {/* Subtle Radial Accent Glow at 6% Opacity (Only place glow is permitted) */}
+      <div
+        aria-hidden="true"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] rounded-full pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(45, 212, 191, 0.06) 0%, transparent 70%)',
+        }}
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.98 }}
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.2 }}
         className="w-full max-w-sm relative z-10"
       >
-        {/* Logo */}
+        {/* Brand Mark */}
         <div className="text-center mb-6">
-          <motion.div
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600/30 to-purple-600/30 border border-indigo-500/40 mb-3 shadow-xl shadow-indigo-500/10"
-          >
-            <Brain className="w-8 h-8 text-indigo-400" />
-          </motion.div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Knowledge Assistant</h1>
-          <p className="text-slate-400 text-xs mt-1 font-medium">Enterprise AI Document Portal</p>
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-card bg-surface-2 border border-border mb-3 text-accent shadow-subtle">
+            <Brain className="w-5 h-5" />
+          </div>
+          <h1 className="text-lg font-semibold text-text-primary tracking-tight">Cortex Assistant</h1>
+          <p className="text-text-muted text-xs mt-0.5">Enterprise Knowledge Portal</p>
         </div>
 
-        {/* Form Card */}
-        <div className="card border-slate-800/80 bg-[#0f1629]/90 shadow-2xl backdrop-blur-xl p-6">
-
+        {/* Centered Card */}
+        <div className="card border border-border bg-surface-1 shadow-popover p-6 rounded-card">
           {/* Role Toggle Selector */}
-          <div className="mb-5">
-            <label className="label text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 block text-center">
-              Select Login Role Mode
+          <div className="mb-4">
+            <label className="label text-center mb-2">
+              Select Role Mode
             </label>
-            <div className="grid grid-cols-3 gap-1 p-1 bg-[#151d35] border border-slate-800 rounded-xl relative">
+            <div className="grid grid-cols-3 gap-1 p-0.5 bg-surface-2 border border-border rounded-control relative">
               {ROLES.map(({ id, label, icon: Icon }) => {
                 const isSelected = selectedRole === id;
                 return (
@@ -94,32 +90,25 @@ export default function LoginPage() {
                     key={id}
                     type="button"
                     onClick={() => { setSelectedRole(id); setError(''); }}
-                    className={`relative flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors z-10 ${
-                      isSelected ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                    className={`relative flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-xs font-medium transition-colors z-10 ${
+                      isSelected ? 'bg-surface-3 text-text-primary border border-border-strong shadow-subtle' : 'text-text-muted hover:text-text-secondary'
                     }`}
                   >
-                    {isSelected && (
-                      <motion.div
-                        layoutId="role-pill"
-                        className="absolute inset-0 bg-indigo-600/30 border border-indigo-500/40 rounded-lg shadow-sm"
-                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                      />
-                    )}
-                    <Icon className={`w-3.5 h-3.5 relative z-10 ${isSelected ? 'text-indigo-400' : ''}`} />
-                    <span className="relative z-10">{label}</span>
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-accent' : 'text-text-muted'}`} />
+                    <span>{label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
-              <label className="label text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+              <label className="label">Email Address</label>
               <input
                 id="email"
                 type="email"
-                className="input bg-[#151d35] border-slate-700/80 text-sm focus:border-indigo-500"
+                className="input text-xs"
                 placeholder={`${selectedRole}@company.com`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -128,12 +117,12 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="label text-xs font-semibold text-slate-300 mb-1.5">Password</label>
+              <label className="label">Password</label>
               <div className="relative">
                 <input
                   id="password"
                   type={show ? 'text' : 'password'}
-                  className="input bg-[#151d35] border-slate-700/80 text-sm pr-10 focus:border-indigo-500"
+                  className="input text-xs pr-9"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -141,37 +130,33 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                   onClick={() => setShow(!show)}
                 >
-                  {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
 
             {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-3.5 py-2.5 leading-relaxed"
-              >
+              <div className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-3 py-2 leading-relaxed">
                 {error}
-              </motion.div>
+              </div>
             )}
 
             <button
               id="login-btn"
               type="submit"
-              className="btn-primary w-full flex items-center justify-center gap-2 py-3 mt-2 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/25"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-2 mt-2 rounded-control text-xs font-medium"
               disabled={loading}
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loading ? `Authenticating ${selectedRole.toUpperCase()}...` : `Sign In as ${selectedRole.toUpperCase()}`}
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
+              {loading ? `Signing in…` : `Sign In as ${selectedRole.toUpperCase()}`}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-[11px] text-slate-500 mt-6 font-medium">
+        <p className="text-center text-[11px] text-text-muted mt-5">
           Enterprise Knowledge Assistant · Role-Based Access Control
         </p>
       </motion.div>
