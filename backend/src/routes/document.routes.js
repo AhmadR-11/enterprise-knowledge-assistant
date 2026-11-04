@@ -6,10 +6,12 @@ const {
   listDocuments,
   updateDocumentMetadata,
   deleteDocument,
-  handleReprocess
+  handleReprocess,
+  getDocumentSummary
 } = require('../controllers/document.controller');
 const protect = require('../middleware/auth.middleware');
 const requireRoles = require('../middleware/role.middleware');
+const { uploadRateLimiter } = require('../middleware/rateLimiter.middleware');
 
 const router = express.Router();
 
@@ -17,12 +19,16 @@ const router = express.Router();
 router.post('/',
   protect,
   requireRoles('admin', 'editor'),
+  uploadRateLimiter,
   uploadMiddleware,
   uploadDocument
 );
 
 // List documents (space-scoped for non-admins — FR-2.2 & FR-2.6)
 router.get('/', protect, listDocuments);
+
+// Document summary/details for RAG citations (space-scoped RBAC)
+router.get('/:id/summary', protect, getDocumentSummary);
 
 // Edit document metadata (title, tags, description — FR-2.3)
 router.patch('/:id',

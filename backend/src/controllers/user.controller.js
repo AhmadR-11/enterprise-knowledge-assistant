@@ -2,6 +2,7 @@
 const bcrypt = require('bcrypt');
 const { listAllUsers, findUserById, createUser, updateUserRole, deleteUser } = require('../models/postgres/user.model');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { invalidateUserAccess } = require('../services/accessControl.service');
 
 // GET /api/users — Admin
 const listUsers = async (req, res, next) => {
@@ -48,6 +49,7 @@ const changeUserRole = async (req, res, next) => {
     const user = await findUserById(id);
     if (!user) return errorResponse(res, 'User not found', 404);
     const updated = await updateUserRole(id, normalizedRole);
+    await invalidateUserAccess(id);
     return successResponse(res, 'User role updated successfully', { user: updated });
   } catch (err) { return next(err); }
 };
@@ -61,6 +63,7 @@ const removeUser = async (req, res, next) => {
     const user = await findUserById(id);
     if (!user) return errorResponse(res, 'User not found', 404);
     await deleteUser(id);
+    await invalidateUserAccess(id);
     return successResponse(res, 'User deleted successfully', { id });
   } catch (err) { return next(err); }
 };

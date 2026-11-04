@@ -11,12 +11,14 @@ const checkSpaceAccess = require('../middleware/spaceAccess.middleware');
 
 const router = express.Router();
 
-router.post('/',              protect, requireRoles('admin'), createSpace);
-router.patch('/:id',          protect, requireRoles('admin'), renameSpace);
-router.delete('/:id',         protect, requireRoles('admin'), deleteSpace);
+// Static endpoints must be registered BEFORE parameterized wildcard routes (/:id)
 router.post('/assign',        protect, requireRoles('admin'), assignUserToSpace);
 router.delete('/assign',      protect, requireRoles('admin'), removeUserFromSpace);
 router.get('/my',             protect, getUserSpaces);
+
+router.post('/',              protect, requireRoles('admin'), createSpace);
+router.patch('/:id',          protect, requireRoles('admin'), renameSpace);
+router.delete('/:id',         protect, requireRoles('admin'), deleteSpace);
 router.get('/:spaceId/users', protect, checkSpaceAccess, getUsersInSpace);
 
 module.exports = router;

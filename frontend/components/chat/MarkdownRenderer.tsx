@@ -4,11 +4,69 @@ import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, BookOpen } from 'lucide-react';
+import { ChatSource } from '@/types';
 
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
+  sources?: ChatSource[];
+  onOpenCitation?: (source: ChatSource, triggerEl?: HTMLButtonElement | null) => void;
+}
+
+/**
+ * Matches an inline code string or markdown link label against available message sources.
+ */
+export function findMatchingSource(
+  rawText: string,
+  sources?: ChatSource[]
+): ChatSource | undefined {
+  if (!sources || sources.length === 0 || !rawText) return undefined;
+
+  const clean = rawText.trim().toLowerCase();
+  if (!clean) return undefined;
+
+  // 1. Direct match on documentId, documentTitle, or originalName
+  for (const s of sources) {
+    if (s.documentId && s.documentId.toLowerCase() === clean) return s;
+    if (s.documentTitle && s.documentTitle.toLowerCase() === clean) return s;
+    if (s.originalName && s.originalName.toLowerCase() === clean) return s;
+  }
+
+  // 2. Strip standard file extensions (.pdf, .docx, .txt, etc.) and compare base names
+  const cleanBase = clean.replace(/\.[a-z0-9]+$/i, '');
+  for (const s of sources) {
+    const titleBase = (s.documentTitle || '').toLowerCase().replace(/\.[a-z0-9]+$/i, '');
+    const origBase = (s.originalName || '').toLowerCase().replace(/\.[a-z0-9]+$/i, '');
+    if (cleanBase === titleBase || cleanBase === origBase) return s;
+  }
+
+  // 3. Substring match: if text includes document title/filename or vice versa
+  for (const s of sources) {
+    const title = (s.documentTitle || '').toLowerCase();
+    const orig = (s.originalName || '').toLowerCase();
+    if (title && (clean.includes(title) || title.includes(clean))) return s;
+    if (orig && (clean.includes(orig) || orig.includes(clean))) return s;
+  }
+
+  // 4. Token overlap for hyphenated/underscored filenames (e.g. "Ahmad-Raza-Software-Engineer.pdf")
+  const tokens = clean.split(/[-_.\s]+/).filter((t) => t.length > 2);
+  if (tokens.length > 0) {
+    for (const s of sources) {
+      const combined = `${s.documentTitle || ''} ${s.originalName || ''}`.toLowerCase();
+      const matchCount = tokens.filter((t) => combined.includes(t)).length;
+      if (matchCount >= Math.min(2, tokens.length)) {
+        return s;
+      }
+    }
+  }
+
+  // 5. Fallback: if the text explicitly ends in a known document extension and only 1 source exists
+  if (/\.(pdf|docx|txt|csv|xlsx|md|pptx)$/i.test(clean) && sources.length === 1) {
+    return sources[0];
+  }
+
+  return undefined;
 }
 
 /**
@@ -53,7 +111,8 @@ function CodeBlock({ children, className }: { children: React.ReactNode; classNa
           type="button"
           onClick={handleCopy}
           aria-label={copied ? 'Code copied to clipboard' : 'Copy code to clipboard'}
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-slate-700/60 text-slate-300 hover:text-white transition"
+          style={{ cursor: 'pointer' }}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-slate-700/60 text-slate-300 hover:text-white transition cursor-pointer"
         >
           {copied ? (
             <>
@@ -75,7 +134,7 @@ function CodeBlock({ children, className }: { children: React.ReactNode; classNa
   );
 }
 
-function MarkdownRendererComponent({ content, isStreaming }: MarkdownRendererProps) {
+function MarkdownRendererComponent({ content, isStreaming, sources, onOpenCitation }: MarkdownRendererProps) {
   // Pre-process stream text: auto-close open code fences mid-stream to avoid layout shifts & flicker
   const sanitizedContent = useMemo(() => {
     let text = content;
@@ -94,18 +153,45 @@ function MarkdownRendererComponent({ content, isStreaming }: MarkdownRendererPro
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
         components={{
-          // Custom external link: opens in new tab with noopener noreferrer
-          a: ({ href, children, ...props }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition font-medium"
-              {...props}
-            >
-              {children}
-            </a>
-          ),
+          // Custom link: if matches a source, opens citation slide-over; otherwise external link
+          a: ({ href, children, ...props }) => {
+            const rawText = extractTextFromChildren(children).trim();
+            const matchedSource = findMatchingSource(rawText, sources) ||
+              (href ? findMatchingSource(href, sources) : undefined);
+
+            if (matchedSource && onOpenCitation) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenCitation(matchedSource, e.currentTarget);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                  className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition font-medium cursor-pointer"
+                  title={`View citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
+                  aria-label={`Open citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
+                >
+                  <BookOpen className="w-3 h-3 text-indigo-400 flex-shrink-0 cursor-pointer" aria-hidden="true" />
+                  <span className="cursor-pointer">{children}</span>
+                </button>
+              );
+            }
+
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ cursor: 'pointer' }}
+                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition font-medium cursor-pointer"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
 
           // Code blocks & inline code
           pre: ({ children }) => <>{children}</>,
@@ -115,6 +201,34 @@ function MarkdownRendererComponent({ content, isStreaming }: MarkdownRendererPro
 
             if (isCodeBlock) {
               return <CodeBlock className={className}>{children}</CodeBlock>;
+            }
+
+            // Extract plain text string of the inline code
+            const rawText = extractTextFromChildren(children).trim();
+
+            // Check if this inline code refers to a cited document
+            const matchedSource = findMatchingSource(rawText, sources);
+
+            if (matchedSource && onOpenCitation) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenCitation(matchedSource, e.currentTarget);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded-md bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 hover:border-indigo-400 text-indigo-300 hover:text-indigo-200 font-mono text-[11px] transition-all cursor-pointer shadow-sm mx-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 focus:ring-offset-[#151d35] align-baseline group/cite"
+                  title={`Click to view document details for ${matchedSource.documentTitle || matchedSource.originalName}`}
+                  aria-label={`Open citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
+                >
+                  <BookOpen className="w-3 h-3 text-indigo-400 group-hover/cite:text-indigo-300 flex-shrink-0 cursor-pointer" aria-hidden="true" />
+                  <span className="font-semibold underline underline-offset-2 decoration-indigo-400/50 group-hover/cite:decoration-indigo-300 cursor-pointer">
+                    {children}
+                  </span>
+                </button>
+              );
             }
 
             return (
@@ -174,12 +288,21 @@ function MarkdownRendererComponent({ content, isStreaming }: MarkdownRendererPro
 export const MarkdownRenderer = React.memo(
   MarkdownRendererComponent,
   (prevProps, nextProps) => {
-    // If not streaming and content has not changed, skip re-render
-    if (!prevProps.isStreaming && !nextProps.isStreaming && prevProps.content === nextProps.content) {
+    // If not streaming and content + sources have not changed, skip re-render
+    if (
+      !prevProps.isStreaming &&
+      !nextProps.isStreaming &&
+      prevProps.content === nextProps.content &&
+      prevProps.sources === nextProps.sources
+    ) {
       return true;
     }
     // If neither changed
-    if (prevProps.isStreaming === nextProps.isStreaming && prevProps.content === nextProps.content) {
+    if (
+      prevProps.isStreaming === nextProps.isStreaming &&
+      prevProps.content === nextProps.content &&
+      prevProps.sources === nextProps.sources
+    ) {
       return true;
     }
     return false;

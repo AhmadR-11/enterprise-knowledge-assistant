@@ -61,6 +61,7 @@ const executeSearchKnowledgeBase = async (args, userContext) => {
     return {
       documentId: String(chunk.documentId || chunk.id),
       title: chunk.documentTitle || 'Document',
+      originalName: chunk.originalName || chunk.documentTitle || 'Document',
       pageNumber: chunk.pageNumber || null,
       snippet,
       score
@@ -73,6 +74,7 @@ const executeSearchKnowledgeBase = async (args, userContext) => {
       userContext.accumulatedSources.push({
         documentId: item.documentId,
         title: item.title,
+        originalName: item.originalName,
         pageNumber: item.pageNumber,
         score: item.score
       });

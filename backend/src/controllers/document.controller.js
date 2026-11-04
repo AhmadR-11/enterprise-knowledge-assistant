@@ -1,11 +1,17 @@
 // backend/src/controllers/document.controller.js
+const crypto = require('crypto');
 const multer = require('multer');
 const Document = require('../models/mongo/Document.model');
 const { deleteChunksByDocumentId } = require('../models/postgres/documentChunk.model');
 const { findSpaceById } = require('../models/postgres/space.model');
 const { checkSpaceMembership, listSpacesForUser } = require('../models/postgres/userSpace.model');
 const { ingestDocument, reprocessDocument } = require('../services/ingestion.service');
+const { execute: executeGetDocumentDetails, invalidateDocumentMetadata } = require('../tools/getDocumentDetails.tool');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const cacheService = require('../services/cache.service');
+const { incrementCorpusVersion } = require('../services/retrievalCache.service');
+
+const INGESTION_LOCK_TTL_SEC = 600; // 10 minutes lock TTL
 
 // Multer: memory storage, 20MB limit, allowed types
 const upload = multer({
@@ -48,9 +54,34 @@ const uploadDocument = async (req, res, next) => {
       }
     }
 
-    // Run ingestion pipeline
-    const doc = await ingestDocument(req.file, spaceId, req.user.id);
-    return successResponse(res, 'Document uploaded and processed successfully', doc, 201);
+    // Ingestion Distributed Lock (R8): prevent concurrent duplicate ingestion
+    const contentHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+    const lockKey = `lock:ingest:${spaceId}:${contentHash}`;
+    const lockToken = crypto.randomUUID();
+    let lockAcquired = false;
+
+    if (cacheService.isReady()) {
+      lockAcquired = await cacheService.acquireLock(lockKey, lockToken, INGESTION_LOCK_TTL_SEC);
+      if (!lockAcquired) {
+        return errorResponse(
+          res,
+          'This document is already being processed. Please wait for the current upload to complete.',
+          409
+        );
+      }
+    }
+
+    try {
+      // Run ingestion pipeline
+      const doc = await ingestDocument(req.file, spaceId, req.user.id);
+      await invalidateDocumentMetadata(doc._id);
+      await incrementCorpusVersion();
+      return successResponse(res, 'Document uploaded and processed successfully', doc, 201);
+    } finally {
+      if (lockAcquired) {
+        await cacheService.releaseLock(lockKey, lockToken);
+      }
+    }
   } catch (err) { return next(err); }
 };
 
@@ -106,6 +137,8 @@ const updateDocumentMetadata = async (req, res, next) => {
     }
 
     await doc.save();
+    await invalidateDocumentMetadata(id);
+    await incrementCorpusVersion();
     return successResponse(res, 'Document metadata updated successfully', doc);
   } catch (err) { return next(err); }
 };
@@ -127,6 +160,8 @@ const deleteDocument = async (req, res, next) => {
     // Delete chunks from Neon then metadata from Mongo
     await deleteChunksByDocumentId(id);
     await Document.findByIdAndDelete(id);
+    await invalidateDocumentMetadata(id);
+    await incrementCorpusVersion();
     return successResponse(res, 'Document deleted successfully', { id });
   } catch (err) { return next(err); }
 };
@@ -150,9 +185,26 @@ const handleReprocess = async (req, res, next) => {
     }
 
     await reprocessDocument(id);
+    await invalidateDocumentMetadata(id);
+    await incrementCorpusVersion();
     const updated = await Document.findById(id);
     return successResponse(res, 'Document reprocessing complete', updated);
   } catch (err) { return next(err); }
+};
+
+// GET /api/documents/:id/summary — Authenticated, space-scoped RBAC via executeGetDocumentDetails
+const getDocumentSummary = async (req, res, next) => {
+  const documentId = req.params.id;
+  try {
+    const result = await executeGetDocumentDetails({ documentId }, { user: req.user });
+    if (result.error) {
+      const statusCode = result.error === 'UNAUTHORIZED' ? 401 : 404;
+      return errorResponse(res, result.message, statusCode);
+    }
+    return successResponse(res, 'Document details retrieved successfully', result);
+  } catch (err) {
+    return next(err);
+  }
 };
 
 module.exports = {
@@ -161,5 +213,6 @@ module.exports = {
   listDocuments,
   updateDocumentMetadata,
   deleteDocument,
-  handleReprocess
+  handleReprocess,
+  getDocumentSummary
 };

@@ -106,8 +106,9 @@ export default function SpacesPage() {
       await api.delete('/spaces/assign', { data: { userId, spaceId: assignModal.id } });
       toast.success('Member removed', { id: toastId });
       setSpaceUsers(su => su.filter(u => u.id !== userId));
-    } catch {
-      toast.error('Failed to remove member', { id: toastId });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Failed to remove member', { id: toastId });
     }
   };
 

@@ -9,6 +9,7 @@ import {
   PanelLeftClose, PanelLeftOpen, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
+import api from '@/lib/api';
 import FloatingChatWidget from '@/components/FloatingChatWidget';
 import { toast } from 'sonner';
 import clsx from 'clsx';
@@ -46,11 +47,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const visibleItems = navItems.filter(i => !i.adminOnly || user.role === 'admin');
 
-  const confirmLogout = () => {
-    logout();
-    toast.info('Signed out successfully');
-    setShowLogoutModal(false);
-    router.push('/login');
+  const confirmLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn('Backend logout request failed, clearing local session anyway:', err);
+    } finally {
+      logout();
+      toast.info('Signed out successfully');
+      setShowLogoutModal(false);
+      router.push('/login');
+    }
   };
 
   return (

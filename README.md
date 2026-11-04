@@ -1,62 +1,120 @@
 # Enterprise Knowledge Assistant (Cortex)
 
-An enterprise-grade, RAG-based (Retrieval-Augmented Generation) internal document Q&A assistant built with a layered Node.js/Express backend and a modern Next.js 15 frontend. The platform secures proprietary company documentation with strict Role-Based Access Control (RBAC) and departmental Space isolation, featuring a production-ready Server-Sent Events (SSE) streaming engine powered by Google Gemini.
+An enterprise-grade, RAG-based (Retrieval-Augmented Generation) internal document knowledge assistant built with a layered **Node.js/Express** backend and a modern **Next.js 15** frontend. The platform secures proprietary company documentation with strict **Role-Based Access Control (RBAC)** and departmental **Space isolation**, featuring an **Agentic Tool Calling** loop powered by the **Google Gemini SDK**, real-time **Server-Sent Events (SSE)** streaming, **PostgreSQL chat persistence**, and an **optional fail-open Redis performance & security layer**.
 
 ---
 
 ## 🏗️ System Architecture
 
+The following diagram illustrates the complete end-to-end data flow: from client query submission, through Express authentication, rate limiting, and token denylist verification, down to the bounded agentic tool loop, optional Redis caches, PostgreSQL vector retrieval (`pgvector`), MongoDB metadata, upstream Gemini generation, and real-time SSE streaming.
+
 ```mermaid
 flowchart TD
     subgraph Client["Frontend Client (Next.js 15 / React 18)"]
-        UI["Chat Interface & Dashboard"]
+        UI["Chat Interface (chat/page.tsx)"]
+        Sidebar["ConversationSidebar (Chat History)"]
         Hook["useChatStream Hook"]
-        Parser["SSE Stream Parser (fetch + Reader)"]
-        Batcher["RAF Token Batcher (60 FPS)"]
-        MD["MarkdownRenderer (react-markdown + GFM)"]
+        ToolUI["ToolActivity Status Stack"]
+        CiteUI["CitationPanel Slide-Over Drawer"]
+        MD["MarkdownRenderer (GFM + Citations)"]
+        
         UI --> Hook
-        Hook --> Parser
-        Parser --> Batcher
-        Batcher --> MD
+        Sidebar --> UI
+        Hook --> ToolUI
+        Hook --> MD
+        UI --> CiteUI
     end
 
     subgraph Backend["API Server (Node.js / Express 5)"]
-        AuthMiddleware["JWT Auth Guard (protect)"]
-        SpaceCheck["Space Access & RBAC Middleware"]
-        ChatController["Chat Controller (handleChatStream / handleChatQuery)"]
-        RetrievalSvc["Retrieval Service (Cosine Similarity)"]
-        LLMSvc["LLM Service (Gemini SDK Wrapper)"]
-        AuditSvc["Audit Service"]
+        RateLimiter["Rate Limiter (Redis / In-Memory Fallback)"]
+        AuthGuard["JWT Auth Guard + Denylist Check (bl:jti)"]
+        RBAC["Space Access Guard (resolveChatAccess)"]
+        ChatCtrl["Chat Controller (/api/chat/stream)"]
+        ConvCtrl["Conversation Controller (/api/conversations)"]
+        
+        subgraph AgentLoop["Agentic Tool Execution Loop (llm.service.js)"]
+            LoopCheck{"Iteration < 3?"}
+            ToolRegistry["Tool Registry (Zod Validation)"]
+            ExecTool["executeTool(name, args, userContext)"]
+            ForceFinal["Force Final Generation (tools: [])"]
+        end
 
-        AuthMiddleware --> SpaceCheck
-        SpaceCheck --> ChatController
-        ChatController --> RetrievalSvc
-        ChatController --> LLMSvc
-        ChatController --> AuditSvc
+        RateLimiter --> AuthGuard
+        AuthGuard --> RBAC
+        RBAC --> ChatCtrl
+        AuthGuard --> ConvCtrl
+        ChatCtrl --> LoopCheck
+        LoopCheck -- "Yes: Function Call" --> ToolRegistry
+        ToolRegistry --> ExecTool
+        ExecTool -- "Tool Result" --> LoopCheck
+        LoopCheck -- "Max Iterations Reached" --> ForceFinal
     end
 
-    subgraph Data["Hybrid Data Tier"]
-        PG[("Neon PostgreSQL + pgvector")]
-        Mongo[("MongoDB Atlas")]
+    subgraph RedisTier["Optional Fail-Open Redis Tier (REDIS_ENABLED)"]
+        TokenDenylist["Token Denylist (bl:jti)"]
+        RateCache["Rate Limits (rl:chat, rl:auth)"]
+        EmbCache["Embedding Cache (emb:sha256)"]
+        AccessCache["Access Cache (access:v:userId)"]
+        DocMetaCache["Doc Metadata Cache (docmeta:v:docId)"]
+        RetCache["Retrieval Cache (ret:sha256)"]
+        HistCache["History Cache (hist:convId)"]
+        LockCache["Ingestion Lock (lock:ingest:docId)"]
     end
 
-    subgraph AI["Upstream AI (Google Gemini API)"]
-        EmbeddingModel["gemini-embedding-001 (768-dim)"]
-        ChatModel["gemini-2.5-flash (generateContentStream)"]
+    subgraph Storage["Persistent Storage Tier"]
+        subgraph PG["Neon PostgreSQL + pgvector"]
+            Users["users & user_spaces"]
+            Spaces["spaces"]
+            Chunks[("document_chunks (768-dim pgvector)")]
+            Conversations[("conversations (id, title, user_id)")]
+            Messages[("messages (id, role, content, status, sources)")]
+        end
+        subgraph Mongo["MongoDB Atlas"]
+            DocMeta[("documents (metadata & status)")]
+            Audits[("auditlogs (compliance trail)")]
+        end
     end
 
-    Client -- "POST /api/chat/stream (SSE)" --> AuthMiddleware
-    RetrievalSvc -- "Vector & Space Queries" --> PG
-    AuditSvc -- "Audit Logs & Doc Metadata" --> Mongo
-    RetrievalSvc -- "Embed Query" --> EmbeddingModel
-    LLMSvc -- "Stream Answer (with AbortSignal)" --> ChatModel
-    ChatModel -- "Stream Chunks" --> LLMSvc
-    LLMSvc -- "event: token / done / error" --> Client
+    subgraph Upstream["Google Gemini AI"]
+        EmbedAPI["gemini-embedding-001 (768-dim)"]
+        ChatAPI["gemini-3.5-flash-lite (generateContentStream)"]
+    end
+
+    Client -- "POST /api/chat/stream (SSE)" --> RateLimiter
+    AuthGuard -. "Check Denylist" .-> TokenDenylist
+    RBAC -. "Cached Access" .-> AccessCache
+    RBAC --> Users
+    ConvCtrl <--> Conversations
+    ConvCtrl <--> Messages
+    ChatCtrl -. "Load/Write History" .-> HistCache
+    ChatCtrl <--> Messages
+
+    ExecTool -- "searchKnowledgeBase" --> RetCache
+    RetCache -. "Cache Miss: Embed" .-> EmbCache
+    EmbCache -. "Compute Vector" .-> EmbedAPI
+    RetCache -. "Vector Cosine Search" .-> Chunks
+    RetCache -. "Hydrate & Enforce RBAC" .-> Chunks
+
+    ExecTool -- "getDocumentDetails" --> DocMetaCache
+    DocMetaCache -. "Fetch Metadata" .-> DocMeta
+    DocMetaCache -. "First Chunk Preview" .-> Chunks
+
+    LoopCheck -- "Prompt + History + Tools" --> ChatAPI
+    ForceFinal --> ChatAPI
+
+    ChatCtrl -- "SSE: conversation" --> Hook
+    ChatCtrl -- "SSE: tool_start / tool_end" --> Hook
+    ChatCtrl -- "SSE: token (delta text)" --> Hook
+    ChatCtrl -- "SSE: sources (deduplicated)" --> Hook
+    ChatCtrl -- "SSE: done / error" --> Hook
+    CiteUI -- "GET /api/documents/:id/summary" --> Backend
 ```
 
 ---
 
 ## ⚡ Streaming Architecture & Protocol
+
+Cortex delivers a production-grade Server-Sent Events (SSE) streaming engine adhering to HTTP/1.1 event-stream standards (`Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`, `X-Accel-Buffering: no`).
 
 ```mermaid
 sequenceDiagram
@@ -64,143 +122,221 @@ sequenceDiagram
     actor User
     participant Client as Next.js Client (useChatStream)
     participant Server as Express Server (/api/chat/stream)
-    participant PG as Neon Postgres (pgvector)
-    participant Gemini as Google Gemini (gemini-2.5-flash)
+    participant Loop as Tool Loop (llm.service)
+    participant Redis as Redis (Fail-Open)
+    participant PG as PostgreSQL (pgvector & persistence)
+    participant Gemini as Google Gemini SDK
 
-    User->>Client: Submits question
-    Client->>Client: Mounts AbortController & sets status='waiting'
-    Client->>Server: POST /api/chat/stream (Authorization: Bearer <token>)
-    Server->>Server: Validate token, user role & space membership
-    Server-->>Client: 200 OK (Content-Type: text/event-stream, flushHeaders)
-    Server->>PG: Search nearest chunks (1 - (embedding <=> $1::vector))
-    PG-->>Server: Top context chunks + similarity scores
-    Server->>Gemini: generateContentStream(prompt, { signal: abortSignal })
-    
-    loop Stream Iteration
-        Gemini-->>Server: Text Chunk
-        Server-->>Client: event: token\ndata: {"text":"..."}\n\n
-        Client->>Client: Buffer tokens via requestAnimationFrame (RAF)
+    User->>Client: Submits prompt
+    Client->>Client: Mount AbortController & set status='waiting'
+    Client->>Server: POST /api/chat/stream (Bearer JWT, question, spaceId, conversationId?)
+    Server->>Redis: Check token denylist (bl:<jti>) & Rate limit
+    Server->>Server: Validate token signature & resolve space permissions
+    Server->>PG: Ensure / create conversation & save user message
+    Server-->>Client: HTTP 200 (flushHeaders: text/event-stream)
+    Server-->>Client: event: conversation\ndata: {"id":"...","title":"..."}\n\n
+
+    Server->>Loop: runAgentStream({ question, userContext, history })
+    Loop->>Gemini: generateContentStream({ contents, tools })
+
+    opt Tool Execution Turn (Iteration 0..2)
+        Gemini-->>Loop: functionCall: searchKnowledgeBase(query, topK)
+        Loop-->>Server: onToolStart event
+        Server-->>Client: event: tool_start\ndata: {"id":"...","name":"searchKnowledgeBase",...}\n\n
+        Loop->>Redis: Check retrieval cache (ret:<hash>)
+        alt Cache Miss
+            Loop->>Redis: Check embedding cache (emb:<hash>)
+            alt Embedding Miss
+                Loop->>Gemini: embedContent (gemini-embedding-001)
+                Gemini-->>Loop: 768-dim vector
+                Loop->>Redis: Cache vector (TTL 24h)
+            end
+            Loop->>PG: Vector cosine search filtered by user space_id
+            PG-->>Loop: Ranked candidate chunks
+            Loop->>Redis: Cache ranked candidates [{chunkId, score}] (TTL 300s)
+        end
+        Loop->>PG: Hydrate chunks & re-verify space permissions
+        PG-->>Loop: Hydrated chunks + snippets
+        Loop-->>Server: onToolEnd event
+        Server-->>Client: event: tool_end\ndata: {"id":"...","name":"searchKnowledgeBase","ok":true,...}\n\n
+        Loop->>Gemini: Feed functionResponse back into conversation turn
     end
 
-    opt Keep-Alive Ping (every 15s)
+    loop Text Generation Stream
+        Gemini-->>Loop: Text delta chunk
+        Loop-->>Server: onToken event
+        Server-->>Client: event: token\ndata: {"text":"..."}\n\n
+        Client->>Client: Buffer tokens & batch update via requestAnimationFrame
+    end
+
+    opt Keep-Alive Heartbeat (every 15s)
         Server-->>Client: : ping\n\n
     end
 
-    alt Stream Completed Normally
-        Gemini-->>Server: Stream Complete & usageMetadata
-        Server-->>Client: event: done\ndata: {"finishReason":"STOP","usage":{...},"sources":[...]}\n\n
-        Client->>Client: Flush buffer, status='idle', render citations
-    else Client Disconnects / Stops
-        User->>Client: Clicks "Stop" or presses Escape
+    Server-->>Client: event: sources\ndata: [{"documentId":"...","title":"...","score":0.52}]\n\n
+    Server->>PG: Persist assistant message (role: 'assistant', status: 'complete', sources, tool_activity)
+    Server->>Redis: Update recent history cache (hist:<conversationId>)
+    Server-->>Client: event: done\ndata: {"finishReason":"STOP","usage":{...}}\n\n
+    Client->>Client: Flush buffer, status='idle', render citation buttons
+
+    opt Client Abort / Disconnect Mid-Stream
+        User->>Client: Clicks "Stop" or hits Escape
         Client->>Client: abortController.abort(), status='stopped'
-        Client->>Server: Socket closed (req.on('close'))
-        Server->>Gemini: Abort upstream fetch request
+        Client->>Server: TCP disconnect / socket close (req.on('close'))
+        Server->>Gemini: Abort upstream stream
+        Server->>PG: Persist assistant message with status='stopped'
         Server->>Server: Log: "client disconnected, generation cancelled"
-    else Upstream / Runtime Error
-        Gemini-->>Server: Error thrown (e.g. rate limit / network)
-        Server-->>Client: event: error\ndata: {"code":"UPSTREAM_ERROR","message":"..."}\n\n
-        Client->>Client: Render inline error alert + "Retry" button
     end
 ```
 
-### Event Specification
+### SSE Event Specification
 
-Each event is serialized as standard Server-Sent Events (`event: <name>\ndata: <json>\n\n`):
+Every payload is serialized strictly as `event: <name>\ndata: <json>\n\n`:
 
-| Event | Payload Structure | Purpose |
+| Event | Payload Fields | Purpose |
 |---|---|---|
-| `token` | `{"text": "<string>"}` | Delivers an incremental text delta generated by the model. |
-| `done` | `{"finishReason": "STOP", "usage": {"promptTokens": N, "completionTokens": N, "totalTokens": N}, "sources": [...]}` | Signals successful completion, returns token counts, and attaches cited document references. |
-| `error` | `{"code": "BAD_REQUEST \| FORBIDDEN \| RETRIEVAL_ERROR \| UPSTREAM_ERROR", "message": "<safe user string>"}` | Emits safe, user-friendly failure details without leaking stack traces or internal API credentials. |
-| `: ping` | *(SSE Comment)* | Dispatched every 15 seconds to prevent intermediate reverse proxies (Nginx, Cloudflare) from closing idle connections. |
+| `conversation` | `{"id": string, "title": string}` | Emitted immediately upon connection to notify the client of the active or newly created conversation ID and auto-generated title for sidebar synchronization. |
+| `tool_start` | `{"id": string, "name": string, "argsSummary": string}` | Emitted immediately when Gemini requests a tool, signaling the frontend to display an active tool progress pill with animated spinner. |
+| `tool_end` | `{"id": string, "name": string, "durationMs": number, "resultCount": number, "ok": boolean}` | Dispatched when tool execution completes, reporting latency, items retrieved, and success status. |
+| `token` | `{"text": string}` | Incremental generated markdown text delta streamed from Gemini. |
+| `sources` | `[{"documentId": string, "title": string, "pageNumber": number \| null, "score": number}]` | Deduplicated array of cited document references feeding the interactive citation chips and drawer. |
+| `done` | `{"finishReason": "STOP" \| "MAX_TOKENS", "usage": {"promptTokens": N, "completionTokens": N, "totalTokens": N}}` | Signals stream completion with token usage metadata. |
+| `error` | `{"code": "BAD_REQUEST" \| "FORBIDDEN" \| "UPSTREAM_ERROR", "message": string}` | Emits safe, sanitized failure descriptions without leaking stack traces or internal environment secrets. |
+| `: ping` | *(SSE Comment)* | Dispatched every 15 seconds to prevent reverse proxies (Nginx, Cloudflare) from terminating idle connections. |
 
-### Streaming Engine Features
+---
 
-* **Non-Blocking Fetch Stream Reader:** Implemented via `fetch` + `response.body.getReader()` and `new TextDecoder('utf-8')` with `{ stream: true }`.
-* **Zero Re-Render Storms:** High-frequency token streams are buffered in memory and batched to the UI via `requestAnimationFrame` (~16–33ms), delivering smooth 60 FPS rendering without CPU saturation.
-* **Mid-Stream Fault Tolerance:** Markdown rendering tolerates unclosed code fences (````), partial lists, and incomplete tables without jumping or layout shift.
-* **Full Cancellation Lifecycle:** A dedicated `AbortController` is attached to every stream. Clicking "Stop" or hitting `Escape` aborts the upstream Gemini call, stops iteration, preserves partial output on screen, and releases stream locks cleanly.
-* **Auto-Scroll with Manual Override:** Automatically follows generation down, but disengages if the user scrolls up to inspect previous answers, showing a "Jump to latest" floating pill.
+## 🤖 Agentic Tool-Calling Design & Architecture
+
+Cortex implements a secure, bounded agentic tool-calling engine built directly on the **Google Gemini SDK** with **Zod** schema validation. The LLM autonomously determines whether to call retrieval tools or answer directly based on context.
+
+### 1. Tool Definitions & Capabilities
+
+The tool registry (`backend/src/tools/index.js`) declares two production tools:
+
+1. **`searchKnowledgeBase`**:
+   * **Schema:** `{ query: string (min 2 chars), topK?: number (1-8, default 5) }`
+   * **Behavior:** Generates a 768-dimensional embedding of the query using `gemini-embedding-001`, searches PostgreSQL `document_chunks` via cosine similarity (`1 - (embedding <=> $1::vector)`), restricted to the user's accessible spaces.
+   * **Output:** Returns `{ query, excerpts: [{ documentId, title, pageNumber, snippet, score }], count }`.
+2. **`getDocumentDetails`**:
+   * **Schema:** `{ documentId: string (valid ObjectId) }`
+   * **Behavior:** Retrieves comprehensive document metadata, workspace space name, chunk count, upload timestamp, and first chunk preview from MongoDB and PostgreSQL.
+   * **Output:** Returns `{ documentId, title, originalName, spaceId, spaceName, mimeType, status, chunkCount, createdAt, previewSnippet }`.
+
+### 2. Strict Zod Argument Validation & Self-Correction
+
+Model-generated function arguments are never executed raw. They pass through strict Zod schemas:
+* **Validation Failure:** If Gemini produces invalid arguments (e.g. query $< 2$ characters, invalid ID), the engine catches the `ZodError` and returns a structured error object back to the model turn (`{ error: 'VALIDATION_ERROR', message: '...' }`).
+* **Resilience:** The application never crashes on bad model output; the structured error allows Gemini to self-correct its parameters in the subsequent turn.
+
+### 3. Bounded Execution Loop (Max 3 Iterations)
+
+To eliminate infinite tool loops and control token expenditure, `runAgentStream` enforces a strict iteration guard:
+* **Iteration Counter:** A turn counter tracks every function-call iteration.
+* **Forced Termination Cap:** If the iteration count reaches `MAX_TOOL_ITERATIONS = 3`, Cortex forcefully strips tools from the model configuration (`tools: []`) and prompts Gemini for a final grounded synthesis turn.
+
+### 4. Authenticated Server-Side Context & RBAC Isolation
+
+Security is enforced at the server boundary:
+* **Zero Model Control over Identity:** The model NEVER passes `userId`, `spaceId`, or authorization flags. All user identity and authorized space IDs (`targetSpaceIds`) are derived server-side from `req.user` via `resolveChatAccess`.
+* **Zero-Leak Document Verification:** If a user requests details for a document located in a space they cannot access, the tool returns a generic `"Document not found or access denied"` status (HTTP 404), ensuring unauthorized documents remain completely invisible.
+
+### 5. Fallback Flag (`USE_TOOL_CALLING`)
+
+The platform supports zero-downtime regression fallback:
+* **`USE_TOOL_CALLING=true` (Default):** Runs the multi-turn agentic loop where Gemini decides when to search.
+* **`USE_TOOL_CALLING=false`:** Falls back to static RAG (deterministic vector search in the controller before streaming).
+
+---
+
+## ⚡ Caching and Consistency
+
+Cortex features an enterprise **fail-open Redis layer** designed for high throughput, sub-millisecond memoization, and strict cross-user data isolation. If Redis is disabled (`REDIS_ENABLED=false`) or encounters downtime, every operation seamlessly and transparently falls back to PostgreSQL and MongoDB.
+
+### Cache Matrix & Invalidation Strategy
+
+| Component | Redis Key Pattern | Default TTL | Invalidation Trigger | Fail-Open Strategy |
+|---|---|---|---|---|
+| **Token Denylist** | `cortex:bl:<jti>` | Remaining token lifespan (`exp - now`) | Natural expiration; set upon `POST /api/auth/logout` | Configurable: `AUTH_DENYLIST_FAIL_CLOSED=false` permits login; `true` rejects with 401 |
+| **Rate Limiter** | `cortex:rl:<type>:<id>` | Window seconds (60s chat, 900s auth, 3600s upload) | Sliding window reset | Falls back to in-process memory map |
+| **Query Embedding** | `cortex:emb:<sha256(model:dim:normQuery)>` | 86,400s (24h) | Immutable per model version | Calls Gemini `embedContent` API directly |
+| **User Space Access** | `cortex:access:v<version>:<userId>` | 120s | Role change, space assignment, user deactivation, or global `access:version` bump | Re-queries PostgreSQL `users` & `user_spaces` |
+| **Document Metadata** | `cortex:docmeta:v<version>:<docId>` | 300s (5m) | Document update, deletion, or space reassignment | Re-queries MongoDB `Document` collection |
+| **Retrieval Results** | `cortex:ret:<sha256(v:model:normQuery:topK:spaceIds)>` | 300s (5m) | Any doc create, update, delete, re-ingest, or space deletion bumps `corpus:version` | Executes live vector query on PostgreSQL `pgvector` |
+| **Recent Model History** | `cortex:hist:<conversationId>` | 3,600s (1h) | Refreshed on assistant message completion; deleted on conversation removal | Cheap DB primary key ownership check, then queries PostgreSQL `messages` |
+| **Ingestion Lock** | `cortex:lock:ingest:<docId>` | 60s | Released upon ingestion complete/failure; auto-expires if process crashes | Skips distributed lock, processes sequentially |
+
+### 🔒 Zero Data Leak Guarantee in Retrieval Caching
+
+Unlike naive RAG systems that cache rendered chunk text or answers, Cortex enforces two non-negotiable security invariants in `retrievalCache.service.js`:
+
+1. **Only Ranked IDs are Cached:** The Redis retrieval cache stores ONLY an array of candidate references: `[{ chunkId: number, score: number }]`. It **NEVER** stores chunk content, document text, or metadata in Redis.
+2. **Access Filter Re-Applied During PostgreSQL Hydration:** When a retrieval cache HIT occurs, the candidate chunk IDs are re-hydrated from PostgreSQL using:
+   ```sql
+   SELECT id, document_id, space_id, content, page_number
+   FROM document_chunks
+   WHERE id = ANY($1::bigint[])
+     AND space_id = ANY($2::int[])
+   ```
+   Because `$2` contains the *current* authenticated user's authorized spaces (resolved fresh on each request), even if a key collision or stale key occurred, chunks belonging to spaces the user cannot access are physically filtered out by PostgreSQL.
+
+### 🔄 The Global Atomic `corpus:version` Counter
+
+To eliminate stale retrieval results across all users when documentation changes, Cortex tracks a global atomic counter in Redis: `cortex:corpus:version`.
+* **Atomic Invalidation:** Whenever a document is uploaded, updated, deleted, re-ingested, or a space is deleted, Cortex calls `incrementCorpusVersion()`.
+* **Zero Overhead:** This single Redis `INCR` call instantly invalidates all existing retrieval cache keys across the entire system in $O(1)$ time, eliminating the need to scan or purge millions of keys.
+
+### 🛡️ Fail-Open Architecture & Resilience
+
+All Redis interactions operate through `cache.service.js` and `redis.client.js`:
+* **Short Command Timeout:** Redis commands timeout after 150ms to ensure database queries are never held up by a lagging cache.
+* **`enableOfflineQueue: false`:** Commands fail immediately when disconnected rather than queuing up unbounded memory.
+* **Rate-Limited Logging:** Connection errors are logged once per throttle window to prevent console log flooding.
+* **100% Graceful Fallback:** Every cache get operation returns `null` (cache miss) on any Redis error, allowing the application to function identically to an uncached deployment.
+
+### 🔑 Token Denylist & Security Trade-Off (`AUTH_DENYLIST_FAIL_CLOSED`)
+
+When a user logs out (`POST /api/auth/logout`), Cortex extracts the unique UUID `jti` claim from their JWT and records it in Redis under `cortex:bl:<jti>` with a TTL matching the token's remaining validity.
+
+* **Fail-Open Default (`AUTH_DENYLIST_FAIL_CLOSED=false`):** If Redis becomes unreachable, authentication checks continue using standard cryptographic signature and expiry validation, logging a clear warning. The trade-off is that a token revoked during an outage could still be accepted until its JWT `exp` timestamp elapses.
+* **Fail-Closed Mode (`AUTH_DENYLIST_FAIL_CLOSED=true`):** If Redis is unreachable, token revocation cannot be verified, so authenticated requests are rejected with HTTP 401. This guarantees that no revoked token is ever accepted, at the cost of tying auth availability to Redis uptime.
 
 ---
 
 ## 🛠️ Technology Stack
 
 ### Backend
-* **Runtime & Framework:** Node.js, Express.js (v5.2.1)
-* **Relational Database & Vector Store:** PostgreSQL (Neon Serverless) with the `pgvector` extension (768-dimensional document and query embeddings)
-* **Document Metadata & Audit Logs:** MongoDB Atlas via Mongoose (v9.7.3)
+* **Runtime & Framework:** Node.js (v18+), Express.js (v5.2.1)
+* **Relational Database & Vector Store:** PostgreSQL (Neon Serverless) with `pgvector` (768-dimensional embeddings)
+* **Document Metadata & Compliance Audits:** MongoDB Atlas via Mongoose (v9.7.3)
+* **High-Speed Cache Tier:** Redis 7 (via `ioredis` v6.0.0, optional & fail-open)
 * **AI & LLM Services:**
   * Embedding Model: Google Gemini `gemini-embedding-001` (768 dimensions)
-  * Chat Generation: Google Gemini `gemini-2.5-flash` (`generateContentStream` & `generateContent`)
-* **Document Ingestion:** Multer (memory storage, 20MB limit), `pdf-parse`, `mammoth` (DOCX extraction), semantic sliding-window text chunker (1000 characters, 150 overlap)
-* **Authentication & Security:** JWT (`jsonwebtoken`), password hashing (`bcrypt`), RBAC & Space access middleware
+  * Chat Generation & Agent Loop: Google Gemini `gemini-3.5-flash-lite` (supports function declarations and stream iteration)
+* **Schema Validation:** Zod (v3.25.7) for tool declarations and argument verification
+* **Document Ingestion:** Multer (memory storage, 20MB limit), `pdf-parse`, `mammoth` (DOCX extraction), sliding-window text chunker (1000 characters, 150 overlap)
+* **Authentication & Authorization:** JWT (`jsonwebtoken`) with `jti`, password hashing (`bcrypt`), space-based RBAC middleware
 
 ### Frontend
-* **Core:** Next.js 15 (v15.5.20) App Router, React 18, TypeScript 5
-* **State Management:** Zustand (v4.5.4) for auth state & session storage
-* **Styling & Icons:** Tailwind CSS (v3.4.1), Lucide React
-* **Animations & Modals:** Framer Motion (v12.42.2)
+* **Framework:** Next.js 15 (v15.5.20) App Router, React 18, TypeScript 5
+* **State Management:** Zustand (v4.5.4) for auth state; custom React refs & hooks for stream batching
+* **Styling & Components:** Tailwind CSS (v3.4.1), Lucide React
+* **Animations:** Framer Motion (v12.42.2)
 * **Markdown & Syntax Highlighting:** `react-markdown` (v10), `remark-gfm` (v4), `rehype-highlight` (v7) with GitHub Dark theme
-* **Feedback & Metrics:** Sonner (toasts), Recharts (dashboard analytics)
-* **HTTP Client:** Axios (v1.7.2) for standard management endpoints; native `fetch` for SSE streams
+* **Feedback & Visuals:** Sonner (toasts), Recharts (dashboard visualizer)
+* **HTTP & Streaming:** Native `fetch` with `ReadableStreamDefaultReader` for SSE; Axios (v1.7.2) for management endpoints
 
 ---
 
-## ✨ Features
+## 🎛️ Feature Flags Reference
 
-* **3-Tier Role-Based Access Control (RBAC):**
-  * `Admin`: Full system control, space creation, user assignment, global document oversight, audit logs, and analytics.
-  * `Editor`: Document upload, metadata modification, and deletion restricted exclusively to assigned spaces.
-  * `Viewer`: Read-only document access and RAG Q&A chat restricted exclusively to assigned spaces.
-* **Departmental Space Isolation:** Multi-tenant workspace scoping where users can only search, retrieve, or query document chunks indexed within spaces they belong to.
-* **Dual Chat Engine:** Real-time token streaming (SSE) with an instant toggle to standard synchronous REST mode for verification and fallback testing.
-* **Rich Markdown Support:** Assistant outputs render headers, tables, task lists, and syntax-highlighted code blocks with an integrated one-click "Copy" button.
-* **Accessibility (a11y):** Screen-reader polite announcements (`aria-live="polite"`), explicit ARIA attributes, keyboard navigation (`Enter` to send, `Escape` to stop), and `prefers-reduced-motion` compliance.
-* **Audit Logging & Analytics:** Automatic tracking of logins, role updates, uploads, deletions, and chat queries with administrative filtering by user, date, or action.
-
----
-
-## 📂 Project Directory Structure
-
-```
-enterprise-knowledge-assistant/
-├── backend/
-│   ├── src/
-│   │   ├── config/             # Database & AI initializations (Neon, Mongo, Gemini)
-│   │   ├── controllers/        # Request handlers (auth, space, user, doc, audit, chat)
-│   │   ├── middleware/         # JWT protect, role authorization, space access guard
-│   │   ├── models/
-│   │   │   ├── mongo/          # Document & AuditLog schemas
-│   │   │   └── postgres/       # User, Space, UserSpace, DocumentChunk models
-│   │   ├── routes/             # Express routes (including /api/chat and /api/chat/stream)
-│   │   ├── services/           # Ingestion, vector retrieval, LLM Gemini services
-│   │   ├── utils/              # Text extraction, chunking, API responses
-│   │   ├── app.js              # Express app definition & CORS configuration
-│   │   └── server.js           # Server bootstrap & DB connection test
-│   ├── .env.example            # Backend environment template
-│   ├── seed.js                 # Seeder for Admin, Editor, Viewer accounts & default Space
-│   └── test_stream.js          # Automated verification test suite for SSE streaming
-│
-├── frontend/
-│   ├── app/
-│   │   ├── (auth)/             # Login & register pages
-│   │   ├── (dashboard)/        # Layout-wrapped authenticated dashboard routes
-│   │   │   ├── admin/          # Admin CRUD (Users, Spaces, Audit Logs)
-│   │   │   ├── dashboard/      # Overview metrics & Recharts visualization
-│   │   │   ├── documents/      # Document upload, metadata edit, delete, reprocess
-│   │   │   └── chat/           # Interactive streaming chat interface
-│   │   ├── globals.css         # Styling, tokens, and highlight.js theme
-│   │   └── layout.tsx          # Root HTML layout with Sonner toast provider
-│   ├── components/
-│   │   ├── chat/               # MessageBubble, ChatInput, MarkdownRenderer, TypingIndicator
-│   │   └── FloatingChatWidget.tsx # Global slide-over chat widget with @mentions
-│   ├── hooks/
-│   │   └── useChatStream.ts    # Custom SSE streaming hook (fetch, reader, RAF batcher)
-│   ├── lib/                    # Axios client, auth storage, Zustand store
-│   ├── types/                  # Shared TypeScript interfaces
-│   └── .env.example            # Frontend environment template
-```
+| Flag Name | Allowed Values | Default | Purpose |
+|---|---|---|---|
+| `USE_TOOL_CALLING` | `true` \| `false` | `true` | When `true`, runs the multi-turn agentic Gemini tool loop. When `false`, falls back to deterministic static RAG retrieval in the controller. |
+| `REDIS_ENABLED` | `true` \| `false` | `false` | Master switch for the Redis tier (embedding cache, access cache, metadata cache, denylist, locks, and rate limiting). When `false`, all Redis helpers operate as transparent no-ops. |
+| `REDIS_RETRIEVAL_CACHE` | `true` \| `false` | `false` | When `true` (and `REDIS_ENABLED=true`), caches ranked vector retrieval candidates `{ chunkId, score }` keyed by query, space IDs, and corpus version. |
+| `REDIS_HISTORY_CACHE` | `true` \| `false` | `false` | When `true` (and `REDIS_ENABLED=true`), caches the recent N complete conversation messages used as model context. Always verified against DB ownership. |
+| `AUTH_DENYLIST_FAIL_CLOSED` | `true` \| `false` | `false` | When `false`, permits authentication if Redis is down (fail-open). When `true`, rejects authenticated requests with 401 during Redis outages (fail-closed). |
 
 ---
 
@@ -209,27 +345,73 @@ enterprise-knowledge-assistant/
 ### Prerequisites
 * [Node.js](https://nodejs.org/) (v18.x or higher)
 * [PostgreSQL](https://neon.tech/) instance with the `pgvector` extension enabled
-* [MongoDB](https://www.mongodb.com/atlas) cluster (Atlas recommended)
+* [MongoDB Atlas](https://www.mongodb.com/atlas) cluster
 * [Google Gemini API Key](https://aistudio.google.com/)
+* [Docker & Docker Compose](https://www.docker.com/) (Optional: for running local Redis)
 
 ---
 
-### 1. Backend Configuration
+### 1. Launch Redis via Docker Compose (Optional)
 
-Navigate to `backend/` and create your `.env` file:
+To enable the optional Redis caching and denylist tier:
+
+```bash
+# Start local Redis with healthcheck in the background:
+docker-compose up -d redis
+
+# Verify container is healthy:
+docker-compose ps
+```
+
+---
+
+### 2. Backend Configuration
+
+Navigate to `backend/` and configure your environment:
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-Edit `backend/.env`:
+Complete `.env` configuration:
 ```env
+# Server Port
 PORT=5000
+
+# MongoDB Atlas Connection URI (stores Document metadata and AuditLogs)
 MONGO_URI=mongodb+srv://<username>:<password>@cluster0.example.mongodb.net/knowledge_assistant?retryWrites=true&w=majority
+
+# Neon PostgreSQL with pgvector extension (stores Users, Spaces, user_spaces, document_chunks, conversations, messages)
 PG_CONNECTION_STRING=postgresql://<user>:<password>@<neon-host>/<database>?sslmode=verify-full
+
+# JWT Secret for signing authentication tokens
 JWT_SECRET=your_super_secret_jwt_random_string_here
+
+# Google Gemini API Key (used for gemini-embedding-001 and gemini-3.5-flash-lite)
 GEMINI_API_KEY=AIzaSyYourGeminiApiKeyHere
+
+# Gemini Model Selection (defaults to gemini-3.5-flash-lite)
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# Agentic Tool Calling Feature Flag (default: true; set to false for static RAG fallback)
+USE_TOOL_CALLING=true
+
+# Redis Configuration (Optional Foundation, default: false)
+REDIS_ENABLED=false
+REDIS_URL=redis://127.0.0.1:6379
+REDIS_KEY_PREFIX=cortex:
+REDIS_RETRIEVAL_CACHE=false
+REDIS_HISTORY_CACHE=false
+AUTH_DENYLIST_FAIL_CLOSED=false
+
+# Rate Limiting Configuration
+RATE_LIMIT_CHAT=20
+RATE_LIMIT_CHAT_WINDOW_SEC=60
+RATE_LIMIT_AUTH=10
+RATE_LIMIT_AUTH_WINDOW_SEC=900
+RATE_LIMIT_UPLOAD=10
+RATE_LIMIT_UPLOAD_WINDOW_SEC=3600
 ```
 
 Install backend dependencies:
@@ -237,29 +419,28 @@ Install backend dependencies:
 npm install
 ```
 
-Seed the default roles and workspace:
+Run PostgreSQL migrations (creates `conversations`, `messages`, and ensures `pgvector` tables):
 ```bash
-# Seed accounts without modifying existing records
+npm run migrate
+```
+
+Seed demo users, spaces, sample documents, and pgvector embeddings:
+```bash
 node seed.js
 
-# OR perform a clean reset of test records and re-seed:
+# Optional: clean existing demo records and re-seed from scratch:
 node seed.js --clean
 ```
 
-Default credentials created:
-* 🛡️ **Admin:** `admin@company.com` / `Admin@1234`
-* ✏️ **Editor:** `editor@company.com` / `Editor@1234` (assigned to "General Knowledge")
-* 👁️ **Viewer:** `viewer@company.com` / `Viewer@1234` (assigned to "General Knowledge")
-
-Start the backend server:
+Start backend development server:
 ```bash
 npm run dev
-# Server starts on http://localhost:5000
+# Server listening on http://localhost:5000
 ```
 
 ---
 
-### 2. Frontend Configuration
+### 3. Frontend Configuration
 
 In a separate terminal, navigate to `frontend/`:
 
@@ -273,51 +454,86 @@ Edit `frontend/.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
-Install frontend dependencies:
+Install frontend dependencies & launch development server:
 ```bash
 npm install
-```
-
-Start the Next.js development server:
-```bash
 npm run dev
-# Dashboard opens on http://localhost:3000
+# Application accessible at http://localhost:3000
 ```
 
 ---
 
-## 🧪 Testing the Streaming Endpoint
+## 🎭 Demo Environment & Test Credentials
 
-You can test the SSE endpoint directly from the command line using `curl`:
+The database seed script (`backend/seed.js`) automatically provisions a complete enterprise demo environment:
+
+### 👤 Test Accounts
+* 🛡️ **Admin:** `admin@company.com` / `admin@1234`
+  * Role: `admin`
+  * Access: Full access across **ALL** spaces (Engineering & Architecture + Executive & Confidential).
+* 👁️ **Viewer:** `viewer@company.com` / `viewer@1234`
+  * Role: `viewer`
+  * Access: Restricted strictly to **"Engineering & Architecture"**. Cannot view or retrieve documents from "Executive & Confidential".
+
+### 🏢 Workspaces (Spaces)
+1. **"Engineering & Architecture":** Public departmental workspace containing technical guides on PostgreSQL pooling, pgvector cosine search, and Redis fail-open architecture.
+2. **"Executive & Confidential":** Restricted leadership workspace containing executive bonuses, compensation bands, and Q4 revenue allocation.
+
+### 💬 6 Demo Questions to Showcase Full Capabilities
+
+| # | Scenario | Query Prompt | Expected System Behavior |
+|---|---|---|---|
+| **1** | **Agentic Tool Call + Citations** | *"How does Cortex handle database connection pooling and sharding?"* | Model autonomously triggers `searchKnowledgeBase`, UI displays animated `ToolActivity` pills with duration, and streams a grounded response with clickable citation chips opening the `CitationPanel`. |
+| **2** | **Direct Greeting (Zero Tools)** | *"Hello! Who are you and what spaces can you search?"* | Gemini recognizes conversational intent, bypasses all retrieval tools, and streams an immediate greeting response. |
+| **3** | **RBAC Access Isolation** | *"What are the executive bonuses and compensation percentages for Q4?"* | **As Viewer:** Returns 0 chunks / polite refusal (confidential space blocked).<br>**As Admin:** Retrieves from Executive Compensation doc and provides grounded figures with citations. |
+| **4** | **Stop Generation Mid-Stream** | *"Explain in extreme detail the full deployment guide and Redis fail-open design."* | User clicks "Stop" (or hits Escape). SSE stream aborts immediately, upstream generation cancels, and partial response is persisted with status `'stopped'`. |
+| **5** | **Error Handling & Retry** | Malformed input or simulated upstream disconnection | Frontend catches error event, renders accessible inline error message, and displays a prominent "Retry" button. |
+| **6** | **Multi-Turn Chat Persistence & Cache** | *"Can you summarize the second point you just made?"* | Demonstrates conversation continuity: user and assistant turns persist in PostgreSQL, load into the sidebar, and hit the Redis history cache (`hist:<convId>`). |
+
+---
+
+## 🧪 Testing & Verification
+
+Cortex includes an exhaustive automated test suite covering tool schemas, Zod validation, RBAC boundaries, SSE event ordering, Redis fail-open behavior, cache invalidation, and secure token denylist:
 
 ```bash
-# 1. Authenticate and retrieve token
+cd backend
+npm test
+```
+
+### Automated Test Suites (261 Passed, 0 Failed):
+1. **`test_agent_tools.js` (68 tests):** Tool registry, Zod validation, RBAC on document details, SSE event order (`conversation -> tool_start -> tool_end -> token -> sources -> done`), greeting flow (zero tools), client abort/stop, static RAG fallback (`USE_TOOL_CALLING=false`), and database persistence of conversations and messages.
+2. **`test_redis_features.js` (47 tests):** Fail-open Redis client, command timeouts, query embedding memoization, distributed ingestion locks (`lock:ingest:<docId>`), and multi-tier rate limiting with in-memory fallback.
+3. **`test_access_docmeta_cache.js` (28 tests):** `resolveChatAccess` cache with per-user invalidation, global `access:version` counter invalidation on role changes and space deletions, and document metadata caching with strict ownership checks.
+4. **`test_retrieval_cache.js` (51 tests):** Retrieval candidate caching (`{ chunkId, score }`), PostgreSQL chunk hydration with space re-filtering, and automatic invalidation on document create/update/delete/move and space deletion via `corpus:version`.
+5. **`test_history_cache.js` (33 tests):** Model context history caching, database primary key ownership verification, write-through on assistant completion, status filtering (`complete` only), and character capping parity between DB and cache paths.
+6. **`test_token_denylist.js` (34 tests):** Unique JWT `jti` issuance, logout route (`POST /api/auth/logout`), denylist verification in `auth.middleware.js`, legacy token compatibility, remaining TTL auto-expiration, `AUTH_DENYLIST_FAIL_CLOSED` fail-open vs fail-closed verification, and frontend 401 redirect safety.
+
+### Live Command-Line Streaming Test (`curl -N`)
+
+To stream directly from the running API server via command line:
+
+```bash
+# 1. Authenticate to obtain a valid JWT token
 TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@company.com","password":"Admin@1234","role":"admin"}' \
+  -d '{"email":"admin@company.com","password":"admin@1234","role":"admin"}' \
   | grep -o '"token":"[^"]*' | cut -d'"' -f4)
 
-# 2. Open an unbuffered SSE stream
+# 2. Test Live Agentic Tool Calling & Streaming
 curl -N -X POST http://localhost:5000/api/chat/stream \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"question":"What documentation is available in our space?"}'
-```
-
-To run the automated backend test suite covering aborts, disconnects, bad inputs, and upstream errors:
-```bash
-cd backend
-node test_stream.js
+  -d '{"question":"How does Cortex handle database connection pooling and sharding?"}'
 ```
 
 ---
 
 ## ⚠️ Known Limitations & Roadmap
 
-In adherence to engineering integrity, the following items represent current constraints and scheduled roadmap items:
+In adherence to strict engineering integrity, the following items represent current architectural boundaries and scheduled roadmap items:
 
-1. **Single-Turn Context Window (Current):** The LLM prompt currently grounds answers using retrieved vector chunks for the immediate query. Previous conversation turns are not yet threaded into multi-turn chat memory.
-2. **In-Memory File Processing:** Uploaded files are ingested via in-memory buffers (`multer.memoryStorage()`) to extract text and generate chunks. Original binary files (PDF/DOCX) are not retained in cloud object storage (S3/GCS); only text chunks and vectors are persisted in PostgreSQL.
-3. **Cache Layer:** Vector embeddings and queries are generated on-demand without Redis caching. High-frequency queries would benefit from a Redis response cache.
-4. **Chat Session Persistence:** While MongoDB audit records track queries, chat transcripts in the web UI are held in client state and reset on page reload (`ChatSession.model.js` is reserved for future persistent session storage).
-5. **Agentic Tool Calling:** Retrieval currently occurs deterministically before calling Gemini; multi-step autonomous tool execution (e.g. LangChain agent loops) is planned for a subsequent version.
+1. **Background Document Ingestion Queue:** Document chunking and embedding generation currently execute in-process via Express. For enterprise deployments processing hundreds of concurrent large documents (100MB+ PDFs), an asynchronous background task worker (e.g. BullMQ with Redis or Celery) is planned to decouple ingestion CPU load from the API server.
+2. **Answer-Level Caching Deliberately Omitted:** While retrieval results and embeddings are aggressively cached, full LLM generated answers are deliberately **not** cached. In an enterprise agentic assistant, slight variations in user intent, dynamic multi-turn history, active space selections, and recent document updates necessitate fresh, grounded synthesis to avoid generating hallucinated or stale answers.
+3. **Automated End-to-End (E2E) Browser Tests:** While backend unit and integration test suites cover 100% of tool validation, RBAC boundaries, SSE streaming lifecycles, and caching invariants (261 automated tests passing), automated browser-level E2E tests (e.g. Playwright) for the Next.js UI remain on the roadmap.
+4. **Distributed Observability & Tracing:** The platform currently employs structured console logging and MongoDB audit trails. Upgrading to OpenTelemetry distributed tracing and Prometheus metrics is scheduled to provide distributed latency traces across Express, Redis, PostgreSQL, and Gemini API calls.

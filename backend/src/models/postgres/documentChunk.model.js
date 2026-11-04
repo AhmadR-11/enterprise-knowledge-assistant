@@ -71,11 +71,34 @@ const searchChunksByVector = async (embedding, spaceIds, topK = 5, documentIds =
   return rows;
 };
 
+/**
+ * Hydrates chunks by their primary IDs, enforcing space authorization.
+ * @param {number[]} chunkIds
+ * @param {number[]|null} [spaceIds]
+ * @returns {Promise<Array<Object>>}
+ */
+const getChunksByIds = async (chunkIds, spaceIds = null) => {
+  if (!chunkIds || chunkIds.length === 0) return [];
+  const params = [chunkIds];
+  let query = `
+    SELECT id, document_id, space_id, content, page_number, chunk_index
+    FROM document_chunks
+    WHERE id = ANY($1::int[])
+  `;
+  if (spaceIds && spaceIds.length > 0) {
+    params.push(spaceIds);
+    query += ` AND space_id = ANY($2::int[])`;
+  }
+  const { rows } = await pool.query(query, params);
+  return rows;
+};
+
 module.exports = {
   insertChunk,
   deleteChunksByDocumentId,
   getChunksByDocumentId,
   countChunksBySpaceId,
   countAllChunks,
-  searchChunksByVector
+  searchChunksByVector,
+  getChunksByIds
 };

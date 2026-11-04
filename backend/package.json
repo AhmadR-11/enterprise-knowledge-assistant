@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "migrate": "node src/migrations/migrate.js",
+    "test": "node test_agent_tools.js && node test_redis_features.js && node test_access_docmeta_cache.js && node test_retrieval_cache.js && node test_history_cache.js && node test_token_denylist.js"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +20,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-async-handler": "^1.2.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.12.0",
     "mongoose": "^9.7.3",

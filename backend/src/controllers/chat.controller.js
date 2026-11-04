@@ -3,62 +3,14 @@ const userSpaceModel = require('../models/postgres/userSpace.model');
 const retrievalService = require('../services/retrieval.service');
 const llmService = require('../services/llm.service');
 const auditService = require('../services/audit.service');
+const conversationService = require('../services/conversation.service');
+const { resolveChatAccess } = require('../services/accessControl.service');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
-
-/**
- * Resolves space authorization for the requesting user.
- * Shared between synchronous and streaming chat handlers.
- * @param {Object} user - Authenticated user object from req.user
- * @param {string|number} [spaceId] - Optional spaceId from request body
- * @returns {Promise<{ targetSpaceIds?: number[] | null, error?: { status: number, code: string, message: string } }>}
- */
-const resolveChatAccess = async (user, spaceId) => {
-  let targetSpaceIds = null;
-
-  if (user.role !== 'admin') {
-    const userSpaces = await userSpaceModel.listSpacesForUser(user.id);
-
-    if (!userSpaces || userSpaces.length === 0) {
-      return {
-        error: {
-          status: 403,
-          code: 'FORBIDDEN',
-          message: 'Access Denied: You are not currently assigned to any space'
-        }
-      };
-    }
-
-    if (spaceId) {
-      const sId = parseInt(spaceId, 10);
-      if (isNaN(sId) || !userSpaces.includes(sId)) {
-        return {
-          error: {
-            status: 403,
-            code: 'FORBIDDEN',
-            message: 'Access Denied: You do not have access to this space'
-          }
-        };
-      }
-      targetSpaceIds = [sId];
-    } else {
-      targetSpaceIds = userSpaces;
-    }
-  } else {
-    if (spaceId) {
-      const sId = parseInt(spaceId, 10);
-      if (!isNaN(sId)) {
-        targetSpaceIds = [sId];
-      }
-    }
-  }
-
-  return { targetSpaceIds };
-};
 
 /**
  * Helper to write a formatted SSE event to response stream.
  * @param {import('express').Response} res
- * @param {string} event - Event name ('token', 'done', 'error')
+ * @param {string} event - Event name ('conversation', 'token', 'tool_start', 'tool_end', 'sources', 'done', 'error')
  * @param {Object} data - Event payload to JSON stringify
  */
 const sendEvent = (res, event, data) => {
@@ -73,41 +25,76 @@ const sendEvent = (res, event, data) => {
  * @param {import('express').NextFunction} next
  */
 const handleChatQuery = async (req, res, next) => {
-  const { question, spaceId, documentIds } = req.body;
+  const { question, spaceId, documentIds, conversationId } = req.body;
 
   if (!question || !question.trim()) {
     return errorResponse(res, 'Question is required', 400);
   }
 
+  const cleanQuestion = question.trim();
+
   try {
+    // 1. Ensure conversation
+    const { conversation } = await conversationService.ensureConversation(
+      conversationId,
+      req.user.id,
+      cleanQuestion
+    );
+
+    // 2. Load previous completed message history for context (up to 10 messages, max 8000 chars)
+    const history = await conversationService.getRecentContextHistory(conversation.id, req.user.id, 10, 8000);
+
+    // 3. Persist user message for this turn
+    await conversationService.saveUserMessage(conversation.id, cleanQuestion);
+
     const { error: accessError, targetSpaceIds } = await resolveChatAccess(req.user, spaceId);
     if (accessError) {
+      await conversationService.saveAssistantMessage({
+        conversationId: conversation.id,
+        content: '',
+        status: 'error',
+        errorMessage: accessError.message
+      });
       return errorResponse(res, accessError.message, accessError.status);
     }
 
     const docIdFilter = Array.isArray(documentIds) && documentIds.length > 0 ? documentIds : null;
 
-    // 1. Vector Search Context Retrieval with optional document filtering
-    const { contextText, sources } = await retrievalService.retrieveContext(question.trim(), targetSpaceIds, 5, docIdFilter);
+    // 4. Vector Search Context Retrieval with optional document filtering
+    const { contextText, sources } = await retrievalService.retrieveContext(cleanQuestion, targetSpaceIds, 5, docIdFilter);
 
-    // 2. LLM Answer Generation
-    const answer = await llmService.generateAnswer(question.trim(), contextText);
+    // 5. LLM Answer Generation
+    const answer = await llmService.generateAnswer(cleanQuestion, contextText, history);
 
-    // 3. Log Audit Query
+    // 4. Save assistant response
+    await conversationService.saveAssistantMessage({
+      conversationId: conversation.id,
+      content: answer,
+      status: 'complete',
+      sources
+    });
+
+    // 5. Log Audit Query
     await auditService.logAuthAttempt('CHAT_QUERY', req.user.email, req, {
-      question: question.trim(),
+      question: cleanQuestion,
       targetSpaceIds,
       documentIds: docIdFilter,
-      sourcesCount: sources.length
+      sourcesCount: sources.length,
+      conversationId: conversation.id
     });
 
     return successResponse(res, 'Response generated successfully', {
-      question: question.trim(),
+      question: cleanQuestion,
       answer,
       sources,
-      targetSpaceIds
+      targetSpaceIds,
+      conversationId: conversation.id,
+      conversationTitle: conversation.title
     });
   } catch (err) {
+    if (err.status === 404) {
+      return errorResponse(res, err.message, 404);
+    }
     console.error('Chat query error:', err);
     return next(err);
   }
@@ -143,9 +130,9 @@ const handleChatStream = async (req, res) => {
     clearInterval(heartbeatInterval);
   };
 
-  // 3. Client disconnect listener
+  // 3. Client disconnect / abort handling
   const handleDisconnect = () => {
-    if (!isStreamFinished && !res.writableEnded) {
+    if (!isClientDisconnected && !isStreamFinished && streamStatus !== 'error') {
       isClientDisconnected = true;
       cleanup();
       abortController.abort();
@@ -155,8 +142,6 @@ const handleChatStream = async (req, res) => {
 
   if (typeof req.on === 'function') {
     req.on('close', () => {
-      // In real Express, req.socket is present. After body parsing, req emits 'close' while req.socket is still open.
-      // An actual client disconnect happens when req.socket is destroyed or in mock environments where req.socket is omitted.
       if (!req.socket || req.socket.destroyed || res.destroyed) {
         handleDisconnect();
       }
@@ -169,8 +154,8 @@ const handleChatStream = async (req, res) => {
     });
   }
 
-  const { question, spaceId, documentIds } = req.body || {};
-  console.log(`[Stream] Incoming query: "${question}" from user: ${req.user?.email} (spaceId: ${spaceId})`);
+  const { question, spaceId, documentIds, conversationId } = req.body || {};
+  console.log(`[Stream] Incoming query: "${question}" from user: ${req.user?.email} (spaceId: ${spaceId}, conversationId: ${conversationId})`);
 
   // 4. Input validation (handles error before first token)
   if (!question || !question.trim()) {
@@ -184,13 +169,54 @@ const handleChatStream = async (req, res) => {
 
   const cleanQuestion = question.trim();
 
+  // Accumulators for stream and database persistence
+  let conversation = null;
+  let accumulatedText = '';
+  let accumulatedToolActivities = [];
+  let sources = [];
+  let streamStatus = 'complete';
+  let safeErrorMessage = null;
+  let isPersisted = false;
+
   try {
-    // 5. Space access authorization check
+    // 5. Ensure or create conversation
+    try {
+      const convData = await conversationService.ensureConversation(
+        conversationId,
+        req.user.id,
+        cleanQuestion
+      );
+      conversation = convData.conversation;
+    } catch (convErr) {
+      cleanup();
+      const status = convErr.status || 500;
+      const code = convErr.code || (status === 404 ? 'NOT_FOUND' : 'CONVERSATION_ERROR');
+      sendEvent(res, 'error', {
+        code,
+        message: convErr.message || 'Failed to initialize conversation'
+      });
+      return res.end();
+    }
+
+    // Emit 'conversation' event immediately so the client learns the id
+    sendEvent(res, 'conversation', {
+      id: conversation.id,
+      title: conversation.title
+    });
+
+    // 6. Load previous completed message history for context (up to 10 messages, max 8000 chars)
+    const contextHistory = await conversationService.getRecentContextHistory(conversation.id, req.user.id, 10, 8000);
+
+    // 7. Persist user message BEFORE generation begins
+    await conversationService.saveUserMessage(conversation.id, cleanQuestion);
+
+    // 8. Space access authorization check
     console.log('[Stream] Resolving space access...');
     const { error: accessError, targetSpaceIds } = await resolveChatAccess(req.user, spaceId);
     if (accessError) {
       console.warn('[Stream] Access error:', accessError);
-      cleanup();
+      streamStatus = 'error';
+      safeErrorMessage = accessError.message;
       sendEvent(res, 'error', {
         code: accessError.code,
         message: accessError.message
@@ -202,12 +228,11 @@ const handleChatStream = async (req, res) => {
     const docIdFilter = Array.isArray(documentIds) && documentIds.length > 0 ? documentIds : null;
     const useToolCalling = process.env.USE_TOOL_CALLING !== 'false';
 
-    let sources = [];
     let finishReason = 'STOP';
     let usage = null;
 
     if (useToolCalling) {
-      console.log('[Stream] Running Agentic Tool Calling flow...');
+      console.log('[Stream] Running Agentic Tool Calling flow with history...');
       const userContext = {
         user: req.user,
         targetSpaceIds,
@@ -218,18 +243,40 @@ const handleChatStream = async (req, res) => {
       const agentResult = await llmService.runAgentStream({
         question: cleanQuestion,
         userContext,
+        history: contextHistory,
         callbacks: {
           onToken: (text) => {
+            accumulatedText += text;
             if (!isClientDisconnected && !res.writableEnded && res.writable) {
               sendEvent(res, 'token', { text });
             }
           },
           onToolStart: ({ id, name, argsSummary }) => {
+            accumulatedToolActivities.push({
+              id,
+              name,
+              argsSummary,
+              status: 'running'
+            });
             if (!isClientDisconnected && !res.writableEnded && res.writable) {
               sendEvent(res, 'tool_start', { id, name, argsSummary });
             }
           },
           onToolEnd: ({ id, name, durationMs, resultCount, ok }) => {
+            const idx = accumulatedToolActivities.findIndex((a) => a.id === id);
+            const toolData = {
+              id,
+              name,
+              durationMs,
+              resultCount,
+              ok,
+              status: ok ? 'done' : 'failed'
+            };
+            if (idx >= 0) {
+              accumulatedToolActivities[idx] = { ...accumulatedToolActivities[idx], ...toolData };
+            } else {
+              accumulatedToolActivities.push(toolData);
+            }
             if (!isClientDisconnected && !res.writableEnded && res.writable) {
               sendEvent(res, 'tool_end', { id, name, durationMs, resultCount, ok });
             }
@@ -245,8 +292,8 @@ const handleChatStream = async (req, res) => {
       usage = agentResult.usage || null;
 
     } else {
-      console.log('[Stream] Running Static RAG fallback flow...');
-      // 6. Vector Context Retrieval
+      console.log('[Stream] Running Static RAG fallback flow with history...');
+      // Vector Context Retrieval
       let contextText = '';
       try {
         console.log('[Stream] Retrieving vector context...');
@@ -255,26 +302,29 @@ const handleChatStream = async (req, res) => {
         sources = retrievalResult.sources || [];
         console.log(`[Stream] Context retrieved: ${sources.length} sources found`);
       } catch (retrievalErr) {
-        cleanup();
+        streamStatus = 'error';
+        safeErrorMessage = 'Failed to retrieve context from knowledge base';
         console.error('[Stream] Retrieval error in chat stream:', retrievalErr.message);
         sendEvent(res, 'error', {
           code: 'RETRIEVAL_ERROR',
-          message: 'Failed to retrieve context from knowledge base'
+          message: safeErrorMessage
         });
         return res.end();
       }
 
       if (isClientDisconnected || res.writableEnded || res.destroyed || abortController.signal.aborted) {
         console.log('[Stream] Client disconnected before generation');
-        cleanup();
         return;
       }
 
-      // 7. Gemini streaming LLM generation
-      console.log('[Stream] Calling Gemini generateAnswerStream...');
-      const streamResult = await llmService.generateAnswerStream(cleanQuestion, contextText, {
-        signal: abortController.signal
-      });
+      // Gemini streaming LLM generation with history
+      console.log('[Stream] Calling Gemini generateAnswerStream with history...');
+      const streamResult = await llmService.generateAnswerStream(
+        cleanQuestion,
+        contextText,
+        { signal: abortController.signal },
+        contextHistory
+      );
       console.log('[Stream] Stream established, iterating chunks...');
 
       if (streamResult?.response && typeof streamResult.response.catch === 'function') {
@@ -289,6 +339,7 @@ const handleChatStream = async (req, res) => {
           }
           const tokenText = typeof chunk.text === 'function' ? chunk.text() : '';
           if (tokenText) {
+            accumulatedText += tokenText;
             sendEvent(res, 'token', { text: tokenText });
           }
         }
@@ -318,12 +369,11 @@ const handleChatStream = async (req, res) => {
     }
 
     if (isClientDisconnected || res.writableEnded || res.destroyed || abortController.signal.aborted) {
-      cleanup();
+      streamStatus = 'stopped';
       return;
     }
 
     isStreamFinished = true;
-    cleanup();
 
     // Send dedicated 'sources' event if sources exist
     if (sources && sources.length > 0) {
@@ -337,33 +387,63 @@ const handleChatStream = async (req, res) => {
     sendEvent(res, 'done', donePayload);
     res.end();
 
-    // 9. Audit logging (asynchronous)
+    // Audit logging (asynchronous)
     auditService.logAuthAttempt('CHAT_QUERY', req.user.email, req, {
       question: cleanQuestion,
       targetSpaceIds,
       documentIds: docIdFilter,
       sourcesCount: sources.length,
+      conversationId: conversation.id,
       mode: 'streaming'
     }).catch(err => console.error('Audit log error in stream:', err.message));
 
   } catch (err) {
-    cleanup();
-
     if (isClientDisconnected || abortController.signal.aborted || res.writableEnded || res.destroyed) {
+      streamStatus = 'stopped';
       return;
     }
 
+    streamStatus = 'error';
     console.error('Chat stream generation error:', err.message);
 
-    const safeMessage = err.status === 429
+    safeErrorMessage = err.status === 429
       ? 'Rate limit exceeded. Please wait a moment before trying again.'
       : 'An unexpected error occurred while generating the answer.';
 
     sendEvent(res, 'error', {
       code: 'UPSTREAM_ERROR',
-      message: safeMessage
+      message: safeErrorMessage
     });
     res.end();
+  } finally {
+    cleanup();
+
+    // 9. Guaranteed persistence in finally block: save assistant message exactly once
+    if (conversation?.id && !isPersisted) {
+      isPersisted = true;
+      if ((isClientDisconnected || abortController.signal.aborted) && streamStatus !== 'error') {
+        streamStatus = 'stopped';
+      }
+
+      // Mark any remaining running tools as failed if stream was interrupted
+      const finalToolActivities = accumulatedToolActivities.map((a) =>
+        a.status === 'running' ? { ...a, status: 'failed' } : a
+      );
+
+      try {
+        await conversationService.saveAssistantMessage({
+          conversationId: conversation.id,
+          content: accumulatedText,
+          status: streamStatus,
+          sources,
+          toolActivity: finalToolActivities,
+          errorMessage: safeErrorMessage
+        });
+        console.log(`[Stream] Persisted assistant message for conv: ${conversation.id} (status: ${streamStatus}, chars: ${accumulatedText.length})`);
+      } catch (persistErr) {
+        console.error('[Stream] Failed to persist assistant message in finally block:', persistErr.message);
+      }
+    }
   }
 };
 
@@ -373,5 +453,3 @@ module.exports = {
   resolveChatAccess,
   sendEvent
 };
-
-

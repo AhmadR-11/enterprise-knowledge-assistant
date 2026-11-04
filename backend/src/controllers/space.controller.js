@@ -9,6 +9,8 @@ const {
 } = require('../models/postgres/userSpace.model');
 const { findUserById } = require('../models/postgres/user.model');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { invalidateUserAccess, invalidateAllAccess } = require('../services/accessControl.service');
+const { incrementCorpusVersion } = require('../services/retrievalCache.service');
 
 // POST /api/spaces — Admin
 const handleCreateSpace = async (req, res, next) => {
@@ -48,6 +50,8 @@ const handleDeleteSpace = async (req, res, next) => {
     const space = await findSpaceById(id);
     if (!space) return errorResponse(res, 'Space not found', 404);
     await deleteSpace(id);
+    await invalidateAllAccess();
+    await incrementCorpusVersion();
     return successResponse(res, 'Space deleted successfully', { id });
   } catch (err) { return next(err); }
 };
@@ -65,6 +69,7 @@ const handleAssignUserToSpace = async (req, res, next) => {
     const space = await findSpaceById(sId);
     if (!space) return errorResponse(res, 'Space not found', 404);
     const membership = await assignUserToSpace(uId, sId);
+    await invalidateUserAccess(uId);
     return successResponse(res, 'User assigned to space successfully', membership || { userId: uId, spaceId: sId });
   } catch (err) { return next(err); }
 };
@@ -79,6 +84,7 @@ const handleRemoveUserFromSpace = async (req, res, next) => {
   try {
     const removed = await removeUserFromSpace(uId, sId);
     if (!removed) return errorResponse(res, 'Membership not found', 404);
+    await invalidateUserAccess(uId);
     return successResponse(res, 'User removed from space successfully', { userId: uId, spaceId: sId });
   } catch (err) { return next(err); }
 };

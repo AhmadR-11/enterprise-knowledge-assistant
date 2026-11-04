@@ -13,6 +13,14 @@
                       radial-gradient(ellipse at 80% 10%, rgba(99,102,241,0.04) 0%, transparent 50%);
     background-attachment: fixed;
   }
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  summary,
+  a {
+    cursor: pointer;
+  }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { @apply bg-[#0f1629]; }
   ::-webkit-scrollbar-thumb { @apply bg-slate-600 rounded-full; }

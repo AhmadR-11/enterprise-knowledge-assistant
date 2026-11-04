@@ -8,7 +8,9 @@ const auditRoutes    = require('./routes/audit.routes');
 const userRoutes     = require('./routes/user.routes');
 const documentRoutes = require('./routes/document.routes');
 const chatRoutes     = require('./routes/chat.routes');
+const conversationRoutes = require('./routes/conversation.routes');
 const errorHandler   = require('./middleware/errorHandler.middleware');
+const { isRedisEnabled, isRedisReady } = require('./services/redis.client');
 
 const app = express();
 
@@ -20,18 +22,31 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Backend is running' });
-});
+// Health check endpoints (reporting redis status without leaking secrets)
+const healthHandler = (req, res) => {
+  let redisStatus = 'disabled';
+  if (isRedisEnabled()) {
+    redisStatus = isRedisReady() ? 'up' : 'down';
+  }
+  return res.status(200).json({
+    status: 'OK',
+    message: 'Backend is running',
+    timestamp: new Date().toISOString(),
+    redis: redisStatus
+  });
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Routes
-app.use('/api/auth',      authRoutes);
-app.use('/api/spaces',    spaceRoutes);
-app.use('/api/audit',     auditRoutes);
-app.use('/api/users',     userRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/chat',      chatRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/spaces',        spaceRoutes);
+app.use('/api/audit',         auditRoutes);
+app.use('/api/users',         userRoutes);
+app.use('/api/documents',     documentRoutes);
+app.use('/api/chat',          chatRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Global error handler — must be last
 app.use(errorHandler);

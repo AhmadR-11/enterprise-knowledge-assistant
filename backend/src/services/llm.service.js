@@ -29,12 +29,17 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
  * Shared across both synchronous and streaming generation.
  * @param {string} question - The user's question
  * @param {string} [contextText] - Document context excerpts
+ * @param {Array<{role: string, content: string}>} [history=[]] - Previous conversation messages
  * @returns {string} Formatted prompt string
  */
-const buildPrompt = (question, contextText) => {
+const buildPrompt = (question, contextText, history = []) => {
+  const historyText = Array.isArray(history) && history.length > 0
+    ? `\nPrevious Conversation Turns:\n---\n${history.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n\n')}\n---\n`
+    : '';
+
   return `
 You are an Enterprise AI Knowledge Assistant. Answer the user's question accurately using ONLY the provided context excerpts from indexed documents within the user's authorized spaces.
-
+${historyText}
 Context Excerpts:
 ---
 ${contextText || 'No context available.'}
@@ -53,11 +58,12 @@ Instructions:
  * Generate a complete answer synchronously (non-streaming).
  * @param {string} question - The user's query
  * @param {string} [contextText] - Context retrieved from vector search
+ * @param {Array<{role: string, content: string}>} [history=[]]
  * @returns {Promise<string>} Full generated response text
  */
-const generateAnswer = async (question, contextText) => {
+const generateAnswer = async (question, contextText, history = []) => {
   const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
-  const prompt = buildPrompt(question, contextText);
+  const prompt = buildPrompt(question, contextText, history);
   const response = await model.generateContent(prompt);
   return response.response.text();
 };
@@ -68,11 +74,12 @@ const generateAnswer = async (question, contextText) => {
  * @param {string} [contextText] - Context retrieved from vector search
  * @param {Object} [options] - Stream options
  * @param {AbortSignal} [options.signal] - AbortSignal for client cancellation
+ * @param {Array<{role: string, content: string}>} [history=[]]
  * @returns {Promise<{ stream: AsyncGenerator<any>, response: Promise<any> }>}
  */
-const generateAnswerStream = async (question, contextText, options = {}) => {
+const generateAnswerStream = async (question, contextText, options = {}, history = []) => {
   const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL });
-  const prompt = buildPrompt(question, contextText);
+  const prompt = buildPrompt(question, contextText, history);
   const requestOptions = {};
   if (options.signal) {
     requestOptions.signal = options.signal;
@@ -106,7 +113,7 @@ const generateAnswerStream = async (question, contextText, options = {}) => {
  * @param {AbortSignal} [params.options.signal]
  * @returns {Promise<{ finishReason: string, usage: Object|null, sources: Array<Object> }>}
  */
-const runAgentStream = async ({ question, userContext, callbacks, options = {} }) => {
+const runAgentStream = async ({ question, userContext, callbacks, options = {}, history = [] }) => {
   const MAX_TOOL_ITERATIONS = 3;
   const signal = options.signal;
   const functionDeclarations = getGeminiFunctionDeclarations();
@@ -114,9 +121,28 @@ const runAgentStream = async ({ question, userContext, callbacks, options = {} }
   // Initialize accumulated sources container on userContext
   userContext.accumulatedSources = userContext.accumulatedSources || [];
 
-  const contents = [
-    { role: 'user', parts: [{ text: question }] }
-  ];
+  // Build multi-turn contents from previous history
+  const contents = [];
+  if (Array.isArray(history) && history.length > 0) {
+    for (const h of history) {
+      const geminiRole = h.role === 'assistant' ? 'model' : 'user';
+      const text = (h.content || '').trim();
+      if (!text) continue;
+      // Combine contiguous turns of the same role to strictly satisfy Gemini alternating role requirements
+      if (contents.length > 0 && contents[contents.length - 1].role === geminiRole) {
+        contents[contents.length - 1].parts[0].text += `\n\n${text}`;
+      } else {
+        contents.push({ role: geminiRole, parts: [{ text }] });
+      }
+    }
+  }
+
+  // Ensure alternation and append current question as the latest user turn
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    contents[contents.length - 1].parts[0].text += `\n\n${question}`;
+  } else {
+    contents.push({ role: 'user', parts: [{ text: question }] });
+  }
 
   const modelWithTools = genAI.getGenerativeModel({
     model: DEFAULT_MODEL,

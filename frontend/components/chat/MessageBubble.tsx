@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
-import { Bot, User, BookOpen, AlertCircle, RotateCcw, Square, Search, FileText, Wrench } from 'lucide-react';
-import { ChatMessage } from '@/hooks/useChatStream';
+import React, { useState, useRef } from 'react';
+import { Bot, User, BookOpen, AlertCircle, RotateCcw, Square } from 'lucide-react';
+import { ChatMessage, ChatSource } from '@/types';
 import { TypingIndicator } from './TypingIndicator';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ToolActivity } from './ToolActivity';
+import { CitationPanel } from './CitationPanel';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -17,6 +19,30 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
   const isStreaming = message.status === 'streaming';
   const isStopped = message.status === 'stopped';
   const isError = message.status === 'error';
+
+  // Citation slide-over state & trigger focus management
+  const [selectedCitation, setSelectedCitation] = useState<ChatSource | null>(null);
+  const [isCitationOpen, setIsCitationOpen] = useState(false);
+  const chipRefs = useRef<{ [key: number]: HTMLButtonElement | null }>({});
+  const activeTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const hasToolActivities = Boolean(message.toolActivities && message.toolActivities.length > 0);
+
+  const handleOpenCitation = (
+    src: ChatSource,
+    index?: number,
+    triggerEl?: HTMLButtonElement | null
+  ) => {
+    if (triggerEl) {
+      activeTriggerRef.current = triggerEl;
+    } else if (typeof index === 'number' && chipRefs.current[index]) {
+      activeTriggerRef.current = chipRefs.current[index];
+    } else {
+      activeTriggerRef.current = null;
+    }
+    setSelectedCitation(src);
+    setIsCitationOpen(true);
+  };
 
   return (
     <div
@@ -39,34 +65,22 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
               : 'bg-[#151d35] border border-slate-800/90 text-slate-200 rounded-tl-none'
           }`}
         >
+          {/* Tool Activity Status (rendered only when message used tools) */}
+          {!isUser && hasToolActivities && (
+            <ToolActivity activities={message.toolActivities} />
+          )}
+
+          {/* Assistant Message Body with smooth typing handover */}
           {isWaiting ? (
-            <div className="space-y-2">
-              {message.activeTool && (
-                <div className="flex items-center gap-2 text-[11px] text-indigo-300 font-medium bg-indigo-950/60 border border-indigo-500/25 px-2.5 py-1.5 rounded-xl">
-                  {message.activeTool.name === 'searchKnowledgeBase' ? (
-                    <Search className="w-3.5 h-3.5 text-indigo-400 animate-spin motion-reduce:animate-none flex-shrink-0" />
-                  ) : message.activeTool.name === 'getDocumentDetails' ? (
-                    <FileText className="w-3.5 h-3.5 text-indigo-400 animate-pulse motion-reduce:animate-none flex-shrink-0" />
-                  ) : (
-                    <Wrench className="w-3.5 h-3.5 text-indigo-400 animate-pulse motion-reduce:animate-none flex-shrink-0" />
-                  )}
-                  <span className="truncate max-w-[280px]">
-                    {message.activeTool.name === 'searchKnowledgeBase'
-                      ? `Searching: ${message.activeTool.argsSummary || 'knowledge base'}`
-                      : message.activeTool.name === 'getDocumentDetails'
-                      ? `Checking: ${message.activeTool.argsSummary || 'document'}`
-                      : `Tool: ${message.activeTool.name}`}
-                  </span>
-                </div>
-              )}
-              <TypingIndicator />
-            </div>
+            hasToolActivities ? null : <TypingIndicator />
           ) : isUser ? (
             <p className="whitespace-pre-wrap">{message.text}</p>
           ) : (
             <MarkdownRenderer
               content={message.text}
               isStreaming={isStreaming}
+              sources={message.sources}
+              onOpenCitation={(src, triggerEl) => handleOpenCitation(src, undefined, triggerEl)}
             />
           )}
 
@@ -103,31 +117,37 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
           )}
         </div>
 
-        {/* Sources & Citations */}
+        {/* Interactive Source Citation Chips */}
         {message.sources && message.sources.length > 0 && (
           <div
             className="flex gap-2 flex-wrap pt-0.5"
             aria-label="Cited sources"
           >
             {message.sources.map((src, i) => {
-              const title = src.documentTitle || (src as unknown as { title?: string }).title || 'Document';
+              const title = src.documentTitle || 'Document';
               const page = src.pageNumber;
-              const sim = typeof src.similarity === 'number'
-                ? src.similarity
-                : ((src as unknown as { score?: number }).score ?? 0);
+              const sim = typeof src.similarity === 'number' ? src.similarity : 0;
+              const percent = Math.round(sim * 100);
 
               return (
-                <div
+                <button
                   key={i}
-                  className="flex items-center gap-1.5 bg-[#0f1629] border border-indigo-500/30 text-indigo-300 text-[10px] px-2.5 py-1 rounded-lg shadow-sm"
+                  ref={(el) => {
+                    chipRefs.current[i] = el;
+                  }}
+                  type="button"
+                  onClick={(e) => handleOpenCitation(src, i, e.currentTarget)}
+                  aria-label={`View citation for ${title}${page ? `, page ${page}` : ''}, ${percent}% match`}
+                  style={{ cursor: 'pointer' }}
+                  className="flex items-center gap-1.5 bg-[#0f1629] hover:bg-[#151f38] border border-indigo-500/30 hover:border-indigo-400/60 text-indigo-300 text-[10px] px-2.5 py-1.5 rounded-lg shadow-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 focus:ring-offset-[#0a0f1e] text-left"
                 >
-                  <BookOpen className="w-3 h-3 text-indigo-400" aria-hidden="true" />
-                  <span className="font-semibold truncate max-w-[150px]">{title}</span>
-                  {page != null && <span className="text-slate-500">p.{page}</span>}
-                  <span className="text-emerald-400 font-mono">
-                    ({Math.round(sim * 100)}%)
+                  <BookOpen className="w-3 h-3 text-indigo-400 flex-shrink-0 cursor-pointer" aria-hidden="true" />
+                  <span className="font-semibold truncate max-w-[150px] cursor-pointer">{title}</span>
+                  {page != null && <span className="text-slate-500 cursor-pointer">p.{page}</span>}
+                  <span className="text-emerald-400 font-mono font-medium cursor-pointer">
+                    ({percent}%)
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -142,6 +162,14 @@ export function MessageBubble({ message, onRetry }: MessageBubbleProps) {
           <User className="w-4 h-4 text-slate-300" />
         </div>
       )}
+
+      {/* Accessible Citation Detail Panel */}
+      <CitationPanel
+        isOpen={isCitationOpen}
+        onClose={() => setIsCitationOpen(false)}
+        citation={selectedCitation}
+        triggerRef={activeTriggerRef}
+      />
     </div>
   );
 }

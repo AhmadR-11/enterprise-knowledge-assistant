@@ -1,9 +1,11 @@
 // backend/src/controllers/auth.controller.js
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { createUser, findUserByEmail } = require('../models/postgres/user.model');
+const userModel = require('../models/postgres/user.model');
 const { logAuthAttempt } = require('../services/audit.service');
 const { successResponse, errorResponse } = require('../utils/apiResponse');
+const { denyToken } = require('../services/tokenDenylist.service');
 
 /**
  * Register a new user
@@ -31,7 +33,7 @@ const register = async (req, res, next) => {
 
   try {
     // Check if email already registered
-    const existingUser = await findUserByEmail(normalizedEmail);
+    const existingUser = await userModel.findUserByEmail(normalizedEmail);
     if (existingUser) {
       await logAuthAttempt('AUTH_REGISTER_FAILURE', normalizedEmail, req, { reason: 'Email already exists' });
       return errorResponse(res, 'Email already registered', 400);
@@ -42,11 +44,11 @@ const register = async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Save to PostgreSQL users table
-    const newUser = await createUser(normalizedEmail, passwordHash, normalizedRole);
+    const newUser = await userModel.createUser(normalizedEmail, passwordHash, normalizedRole);
 
-    // Generate JWT token
+    // Generate JWT token with unique jti
     const token = jwt.sign(
-      { id: newUser.id, email: newUser.email, role: newUser.role },
+      { id: newUser.id, email: newUser.email, role: newUser.role, jti: crypto.randomUUID() },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -95,7 +97,7 @@ const login = async (req, res, next) => {
 
   try {
     // Find user in PostgreSQL
-    const user = await findUserByEmail(normalizedEmail);
+    const user = await userModel.findUserByEmail(normalizedEmail);
     if (!user) {
       // Log login failure
       await logAuthAttempt('AUTH_LOGIN_FAILURE', normalizedEmail, req, { reason: 'User email not found' });
@@ -125,9 +127,9 @@ const login = async (req, res, next) => {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
-    // Generate JWT token
+    // Generate JWT token with unique jti
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, jti: crypto.randomUUID() },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -156,7 +158,36 @@ const login = async (req, res, next) => {
   }
 };
 
+/**
+ * User logout
+ * POST /api/auth/logout (authenticated)
+ * Adds token JTI to Redis denylist and returns 204.
+ */
+const logout = async (req, res, next) => {
+  try {
+    const jti = req.auth?.jti;
+    const exp = req.auth?.exp;
+
+    if (jti) {
+      await denyToken(jti, exp);
+    }
+
+    if (req.user) {
+      await logAuthAttempt('AUTH_LOGOUT_SUCCESS', req.user.email, req, {
+        userId: req.user.id,
+        jti
+      });
+    }
+
+    return res.status(204).end();
+  } catch (error) {
+    console.error('Logout controller error:', error);
+    return next(error);
+  }
+};
+
 module.exports = {
   register,
-  login
+  login,
+  logout
 };

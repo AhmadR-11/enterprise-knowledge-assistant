@@ -24,6 +24,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     clearAuth();
     set({ token: null, user: null });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('auth:logout'));
+    }
   },
   hydrate: () => {
     set({ token: getToken(), user: getUser(), isHydrated: true });
