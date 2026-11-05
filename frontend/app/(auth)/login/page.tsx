@@ -6,6 +6,7 @@ import { Eye, EyeOff, Loader2, Brain, Shield, Edit3, Eye as EyeIcon } from 'luci
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type RoleOption = 'admin' | 'editor' | 'viewer';
 
@@ -50,13 +51,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-bg relative overflow-hidden select-none">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg text-text-primary relative overflow-hidden select-none">
+      {/* Theme Toggle Top-Right */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+
       {/* Subtle Radial Accent Glow at 6% Opacity (Only place glow is permitted) */}
       <div
         aria-hidden="true"
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] rounded-full pointer-events-none"
         style={{
-          background: 'radial-gradient(circle, rgba(45, 212, 191, 0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)',
         }}
       />
 
@@ -139,7 +145,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-3 py-2 leading-relaxed">
+              <div className="text-danger text-xs bg-danger-soft border border-danger-border rounded-control px-3 py-2 leading-relaxed">
                 {error}
               </div>
             )}

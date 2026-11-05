@@ -16,11 +16,14 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   AlertTriangle,
-  MessageSquare
+  MessageSquare,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import FloatingChatWidget from '@/components/FloatingChatWidget';
+import ThemeToggle from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 import clsx from 'clsx';
 
@@ -38,6 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { user, logout, hydrate, isHydrated } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
@@ -54,6 +58,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
   }, [isHydrated, user, pathname, router]);
+
+  // Close mobile nav on route change
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
+  // Escape key closes mobile nav and logout modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (mobileNavOpen) setMobileNavOpen(false);
+        if (showLogoutModal) setShowLogoutModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileNavOpen, showLogoutModal]);
 
   if (!isHydrated || !user) return null;
 
@@ -72,18 +93,129 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  const renderNavLinks = (isExpanded: boolean, onNavigate?: () => void) => (
+    <nav className="flex-1 px-2.5 py-3 space-y-1 overflow-y-auto">
+      {visibleItems.map(({ href, icon: Icon, label }) => {
+        const active = pathname === href;
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            className={clsx(
+              'group flex items-center gap-2.5 px-2.5 h-9 min-h-[36px] rounded-control text-xs font-medium transition-colors duration-150 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              active
+                ? 'bg-surface-2 text-text-primary font-semibold shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-surface-2'
+            )}
+            title={!isExpanded ? label : undefined}
+          >
+            {/* 2px Left Accent Indicator on Active */}
+            {active && (
+              <motion.div
+                layoutId="nav-rail-indicator"
+                className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r-full"
+                transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              />
+            )}
+            <Icon
+              className={clsx(
+                'w-4 h-4 flex-shrink-0 transition-colors',
+                active ? 'text-accent' : 'text-text-muted group-hover:text-text-secondary'
+              )}
+            />
+            {isExpanded && (
+              <>
+                <span className="flex-1 truncate">{label}</span>
+                {active && <ChevronRight className="w-3 h-3 text-text-muted" />}
+              </>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const renderUserBlock = (isExpanded: boolean) => (
+    <div className="p-2.5 pb-4 border-t border-border bg-sidebar select-none">
+      {isExpanded ? (
+        <div className="flex items-center justify-between gap-2 px-1.5 py-1 mb-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-surface-3 border border-border flex items-center justify-center flex-shrink-0 text-text-primary text-[11px] font-semibold">
+              {user.email[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-primary font-medium truncate leading-tight">
+                {user.email}
+              </p>
+              <div className="mt-0.5">
+                <span className="badge text-[10px] py-0 px-1.5 badge-admin">
+                  {user.role}
+                </span>
+              </div>
+            </div>
+          </div>
+          <ThemeToggle className="flex-shrink-0" />
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 mb-2">
+          <div className="w-7 h-7 rounded-full bg-surface-3 border border-border flex items-center justify-center text-text-primary text-[11px] font-semibold">
+            {user.email[0].toUpperCase()}
+          </div>
+          <ThemeToggle />
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setShowLogoutModal(true)}
+        className={clsx(
+          'flex items-center gap-2 text-xs text-text-muted hover:text-danger hover:bg-danger-soft active:bg-danger-border disabled:opacity-50 rounded-control transition-colors py-1.5 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          isExpanded ? 'w-full px-2' : 'w-full justify-center'
+        )}
+        title="Sign Out"
+        aria-label="Sign Out"
+      >
+        <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
+        {isExpanded && <span>Sign Out</span>}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="flex h-screen overflow-hidden bg-bg text-text-primary">
-      {/* Left Nav Rail (Slim, refined, collapsible) */}
+    <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-bg text-text-primary">
+      {/* Mobile Header Bar (< 1024px) */}
+      <header className="lg:hidden h-12 px-3 border-b border-border bg-sidebar flex items-center justify-between flex-shrink-0 z-30 select-none">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-primary">
+              <Brain className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-xs font-semibold text-text-primary tracking-tight">Cortex</span>
+          </div>
+        </div>
+
+        <ThemeToggle />
+      </header>
+
+      {/* Desktop Persistent Left Nav Rail (>= 1024px) */}
       <motion.aside
         animate={{ width: sidebarOpen ? 232 : 64 }}
         transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-        className="flex-shrink-0 bg-sidebar border-r border-border flex flex-col z-20 relative overflow-hidden select-none"
+        className="hidden lg:flex flex-shrink-0 bg-sidebar border-r border-border flex-col z-20 relative overflow-hidden select-none"
       >
         {/* Header / Brand Mark */}
         <div className="h-14 px-3 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
-            <div className="w-8 h-8 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 text-accent">
+            <div className="w-8 h-8 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 text-text-primary">
               <Brain className="w-4 h-4" />
             </div>
             {sidebarOpen && (
@@ -96,7 +228,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="text-xs font-semibold text-text-primary tracking-tight truncate">
                   Cortex
                 </span>
-                <span className="text-[10px] text-text-muted font-medium truncate">
+                <span className="text-2xs text-text-muted font-medium truncate">
                   Knowledge Assistant
                 </span>
               </motion.div>
@@ -106,7 +238,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+            className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
@@ -115,96 +247,59 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 px-2.5 py-3 space-y-1 overflow-y-auto">
-          {visibleItems.map(({ href, icon: Icon, label }) => {
-            const active = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={clsx(
-                  'group flex items-center gap-2.5 px-2.5 py-2 rounded-control text-xs font-medium transition-all duration-150 relative',
-                  active
-                    ? 'bg-surface-2 text-text-primary font-semibold shadow-subtle'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-surface-1'
-                )}
-                title={!sidebarOpen ? label : undefined}
-              >
-                {/* 2px Left Accent Indicator on Active */}
-                {active && (
-                  <motion.div
-                    layoutId="nav-rail-indicator"
-                    className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r-full"
-                    transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-                  />
-                )}
-                <Icon
-                  className={clsx(
-                    'w-4 h-4 flex-shrink-0 transition-colors',
-                    active ? 'text-accent' : 'text-text-muted group-hover:text-text-secondary'
-                  )}
-                />
-                {sidebarOpen && (
-                  <>
-                    <span className="flex-1 truncate">{label}</span>
-                    {active && <ChevronRight className="w-3 h-3 text-text-muted" />}
-                  </>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+        {renderNavLinks(sidebarOpen)}
 
         {/* User Block & Quiet Sign Out */}
-        <div className="p-2.5 border-t border-border bg-sidebar/50">
-          {sidebarOpen ? (
-            <div className="flex items-center gap-2.5 px-1.5 py-1 mb-2">
-              <div className="w-7 h-7 rounded-full bg-surface-3 border border-border flex items-center justify-center flex-shrink-0 text-text-primary text-[11px] font-semibold">
-                {user.email[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-text-primary font-medium truncate leading-tight">
-                  {user.email}
-                </p>
-                <div className="mt-0.5">
-                  <span
-                    className={clsx(
-                      'badge text-[10px] py-0 px-1.5',
-                      user.role === 'admin'
-                        ? 'badge-admin'
-                        : user.role === 'editor'
-                        ? 'badge-editor'
-                        : 'badge-viewer'
-                    )}
-                  >
-                    {user.role}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-center mb-2">
-              <div className="w-7 h-7 rounded-full bg-surface-3 border border-border flex items-center justify-center text-text-primary text-[11px] font-semibold">
-                {user.email[0].toUpperCase()}
-              </div>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowLogoutModal(true)}
-            className={clsx(
-              'flex items-center gap-2 text-xs text-text-muted hover:text-danger hover:bg-danger/10 rounded-control transition-colors py-1.5',
-              sidebarOpen ? 'w-full px-2' : 'w-full justify-center'
-            )}
-            title="Sign Out"
-            aria-label="Sign Out"
-          >
-            <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
-            {sidebarOpen && <span>Sign Out</span>}
-          </button>
-        </div>
+        {renderUserBlock(sidebarOpen)}
       </motion.aside>
+
+      {/* Mobile Drawer (< 1024px) */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileNavOpen(false)}
+              className="fixed inset-0 bg-surface-overlay"
+              aria-hidden="true"
+            />
+            {/* Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+              className="relative z-50 w-[240px] max-w-[85vw] h-full bg-sidebar border-r border-border flex flex-col shadow-popover select-none"
+            >
+              <div className="h-14 px-3 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-primary">
+                    <Brain className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-text-primary tracking-tight">Cortex</span>
+                    <span className="text-2xs text-text-muted font-medium">Knowledge Assistant</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  aria-label="Close navigation menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {renderNavLinks(true, () => setMobileNavOpen(false))}
+              {renderUserBlock(true)}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content Pane */}
       <main className="flex-1 overflow-y-auto relative bg-bg">
@@ -228,7 +323,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sign Out Confirmation Modal */}
       <AnimatePresence>
         {showLogoutModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-surface-overlay flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -236,7 +331,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               transition={{ duration: 0.15 }}
               className="card w-full max-w-sm border border-border-strong bg-surface-1 shadow-popover p-6 text-center"
             >
-              <div className="mx-auto w-10 h-10 rounded-card bg-danger/10 border border-danger/20 flex items-center justify-center mb-3 text-danger">
+              <div className="mx-auto w-10 h-10 rounded-card bg-danger-soft border border-danger-border flex items-center justify-center mb-3 text-danger">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-semibold text-text-primary tracking-tight mb-1">
@@ -249,14 +344,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                   type="button"
                   onClick={() => setShowLogoutModal(false)}
-                  className="btn-ghost flex-1 py-2 rounded-control border border-border text-text-secondary hover:text-text-primary"
+                  className="btn-ghost flex-1 py-2 min-h-[36px] rounded-control border border-border text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={confirmLogout}
-                  className="btn-danger flex-1 py-2 rounded-control font-medium"
+                  className="btn-danger flex-1 py-2 min-h-[36px] rounded-control font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Sign Out
                 </button>

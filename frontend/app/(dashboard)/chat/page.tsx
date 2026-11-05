@@ -226,7 +226,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-control bg-surface-2 border border-border text-xs text-text-secondary hover:text-text-primary md:hidden transition shadow-subtle"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] rounded-control bg-surface-2 border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-surface-3 lg:hidden transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               aria-label="Open conversation history drawer"
             >
               <MessageSquare className="w-3.5 h-3.5 text-text-muted" />
@@ -256,10 +256,10 @@ export default function ChatPage() {
                 aria-checked={mode === 'streaming'}
                 onClick={() => setMode('streaming')}
                 className={clsx(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-all duration-150',
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   mode === 'streaming'
-                    ? 'bg-surface-3 text-text-primary border border-border-strong shadow-subtle'
-                    : 'text-text-muted hover:text-text-secondary'
+                    ? 'bg-surface-3 text-text-primary border border-border-strong shadow-sm'
+                    : 'text-text-muted hover:text-text-secondary active:bg-surface-3'
                 )}
               >
                 {mode === 'streaming' && (
@@ -273,10 +273,10 @@ export default function ChatPage() {
                 aria-checked={mode === 'non-streaming'}
                 onClick={() => setMode('non-streaming')}
                 className={clsx(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-all duration-150',
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   mode === 'non-streaming'
-                    ? 'bg-surface-3 text-text-primary border border-border-strong shadow-subtle'
-                    : 'text-text-muted hover:text-text-secondary'
+                    ? 'bg-surface-3 text-text-primary border border-border-strong shadow-sm'
+                    : 'text-text-muted hover:text-text-secondary active:bg-surface-3'
                 )}
               >
                 {mode === 'non-streaming' && (

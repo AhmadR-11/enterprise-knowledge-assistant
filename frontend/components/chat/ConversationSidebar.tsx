@@ -7,7 +7,6 @@ import {
   Edit2,
   Check,
   X,
-  Loader2,
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,10 +58,12 @@ function groupConversations(list: Conversation[]): ConversationGroup[] {
   const today: Conversation[] = [];
   const yesterday: Conversation[] = [];
   const earlier: Conversation[] = [];
+  const older: Conversation[] = [];
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const yesterdayStart = todayStart - 86400000;
+  const earlierStart = todayStart - 7 * 86400000;
 
   for (const c of list) {
     const time = new Date(c.updated_at || c.created_at).getTime();
@@ -70,8 +71,10 @@ function groupConversations(list: Conversation[]): ConversationGroup[] {
       today.push(c);
     } else if (time >= yesterdayStart) {
       yesterday.push(c);
-    } else {
+    } else if (time >= earlierStart) {
       earlier.push(c);
+    } else {
+      older.push(c);
     }
   }
 
@@ -79,6 +82,7 @@ function groupConversations(list: Conversation[]): ConversationGroup[] {
     { label: 'Today', items: today },
     { label: 'Yesterday', items: yesterday },
     { label: 'Earlier', items: earlier },
+    { label: 'Older', items: older },
   ].filter((g) => g.items.length > 0);
 }
 
@@ -141,6 +145,18 @@ export function ConversationSidebar({
       editInputRef.current.select();
     }
   }, [editingId]);
+
+  // Escape key closes mobile drawer
+  useEffect(() => {
+    if (!isOpenMobile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseMobile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpenMobile, onCloseMobile]);
 
   const handleStartRename = (conv: Conversation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -208,16 +224,16 @@ export function ConversationSidebar({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-3.5 h-3.5 text-text-muted" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              History
+            <span className="text-xs font-medium text-text-muted">
+              Conversations
             </span>
           </div>
           {isOpenMobile && (
             <button
               type="button"
               onClick={onCloseMobile}
-              className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition md:hidden"
-              aria-label="Close conversation list"
+              className="p-1.5 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 disabled:opacity-50 disabled:pointer-events-none transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              aria-label="Close conversation history"
             >
               <X className="w-4 h-4" />
             </button>
@@ -231,7 +247,7 @@ export function ConversationSidebar({
             onNewChat();
             if (isOpenMobile) onCloseMobile();
           }}
-          className="w-full h-9 flex items-center justify-center gap-2 bg-accent-fill hover:brightness-105 active:scale-[0.98] text-accent-text font-medium text-xs rounded-control shadow-subtle transition-all duration-150"
+          className="w-full h-9 min-h-[36px] flex items-center justify-center gap-2 bg-accent-fill hover:brightness-105 motion-safe:active:scale-[0.98] active:brightness-95 text-text-on-accent font-medium text-xs rounded-control shadow-sm motion-safe:transition-transform duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>New chat</span>
@@ -241,32 +257,40 @@ export function ConversationSidebar({
       {/* Conversations Scroll Area */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
         {loading ? (
-          <div className="flex items-center justify-center py-10 text-text-muted gap-2 text-xs">
-            <Loader2 className="w-4 h-4 animate-spin text-accent" />
-            <span>Loading chats…</span>
+          <div className="space-y-4 px-1 py-1">
+            <div className="h-3 w-12 bg-surface-3/70 rounded animate-pulse mb-2" />
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-9 rounded-control bg-surface-2/60 border border-border/50 p-2 flex items-center justify-between animate-pulse"
+              >
+                <div className="h-3 bg-surface-3/80 rounded w-3/4" />
+                <div className="h-2.5 bg-surface-3/50 rounded w-7" />
+              </div>
+            ))}
           </div>
         ) : error ? (
-          <div className="p-3 text-center text-xs text-danger/90 bg-danger/10 border border-danger/20 rounded-card m-2">
+          <div className="p-3 text-center text-xs text-danger bg-danger-soft border border-danger-border rounded-card m-2">
             <p>{error}</p>
             <button
               type="button"
               onClick={fetchConversations}
-              className="mt-2 text-2xs text-text-primary underline hover:no-underline"
+              className="mt-2 text-2xs text-text-primary underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               Retry
             </button>
           </div>
         ) : conversations.length === 0 ? (
           <div className="text-center py-12 px-3 text-text-muted">
-            <p className="text-xs">No conversations yet</p>
-            <p className="text-[11px] mt-1 text-text-muted/80">
+            <p className="text-xs font-medium text-text-secondary">No conversations yet</p>
+            <p className="text-[11px] mt-1 text-text-muted">
               Messages will be saved here automatically.
             </p>
           </div>
         ) : (
           grouped.map((group) => (
             <div key={group.label} className="space-y-1">
-              <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+              <p className="px-2 text-2xs font-medium text-text-muted">
                 {group.label}
               </p>
               <div className="space-y-0.5">
@@ -285,11 +309,21 @@ export function ConversationSidebar({
                         }
                       }}
                       className={clsx(
-                        'group relative flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-control text-xs cursor-pointer transition-all duration-150',
+                        'group relative flex items-center justify-between gap-1.5 px-2.5 py-2 min-h-[36px] rounded-control text-xs cursor-pointer transition-colors duration-150',
                         isActive
-                          ? 'bg-surface-2 text-text-primary font-medium shadow-subtle'
+                          ? 'bg-surface-2 text-text-primary font-medium shadow-sm'
                           : 'text-text-secondary hover:text-text-primary hover:bg-surface-1'
                       )}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          if (!isEditing && !isDeleting) {
+                            e.preventDefault();
+                            onSelectConversation(conv.id);
+                            if (isOpenMobile) onCloseMobile();
+                          }
+                        }
+                      }}
                     >
                       {/* Active Left 2px Accent Indicator */}
                       {isActive && (
@@ -312,22 +346,24 @@ export function ConversationSidebar({
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') setEditingId(null);
                               }}
-                              className="w-full bg-surface-3 border border-accent text-xs px-2 py-0.5 rounded text-text-primary focus:outline-none"
+                              className="w-full bg-surface-3 border border-accent text-xs px-2 py-0.5 rounded text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
                             />
                             <button
                               type="submit"
-                              className="p-1 text-accent hover:text-accent/80"
+                              className="p-1 rounded-control text-accent hover:text-accent/80 active:opacity-75 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                               title="Save"
+                              aria-label="Save title"
                             >
-                              <Check className="w-3 h-3" />
+                              <Check className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={handleCancelRename}
-                              className="p-1 text-text-muted hover:text-text-primary"
+                              className="p-1 rounded-control text-text-muted hover:text-text-primary active:bg-surface-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                               title="Cancel"
+                              aria-label="Cancel rename"
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-3.5 h-3.5" />
                             </button>
                           </form>
                         ) : (
@@ -335,7 +371,7 @@ export function ConversationSidebar({
                             <span className="truncate block flex-1 text-xs">
                               {conv.title}
                             </span>
-                            <span className="text-[10px] text-text-muted font-mono tabular-nums flex-shrink-0 group-hover:hidden">
+                            <span className="text-[10px] text-text-muted tabular-nums flex-shrink-0 group-hover:hidden group-focus-within:hidden">
                               {formatRelativeTime(conv.updated_at || conv.created_at)}
                             </span>
                           </div>
@@ -347,15 +383,16 @@ export function ConversationSidebar({
                         <div className="hidden group-hover:flex group-focus-within:flex items-center gap-0.5 flex-shrink-0">
                           {isDeleting ? (
                             <div
-                              className="flex items-center gap-1 bg-surface-3 border border-border px-1.5 py-0.5 rounded"
+                              className="flex items-center gap-1 bg-surface-3 border border-border-strong px-2 py-0.5 rounded-control shadow-sm"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="text-[10px] text-danger font-medium">Delete?</span>
+                              <span className="text-[11px] text-danger font-medium">Delete?</span>
                               <button
                                 type="button"
                                 onClick={(e) => handleConfirmDelete(conv.id, e)}
-                                className="p-0.5 text-danger hover:brightness-110"
+                                className="p-0.5 text-danger hover:brightness-110 active:opacity-75 disabled:opacity-50 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                 title="Confirm delete"
+                                aria-label="Confirm delete conversation"
                               >
                                 <Check className="w-3 h-3" />
                               </button>
@@ -365,8 +402,9 @@ export function ConversationSidebar({
                                   e.stopPropagation();
                                   setDeletingId(null);
                                 }}
-                                className="p-0.5 text-text-muted hover:text-text-primary"
+                                className="p-0.5 text-text-muted hover:text-text-primary active:bg-surface-2 disabled:opacity-50 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                 title="Cancel"
+                                aria-label="Cancel deletion"
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -376,9 +414,9 @@ export function ConversationSidebar({
                               <button
                                 type="button"
                                 onClick={(e) => handleStartRename(conv, e)}
-                                className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-surface-3 transition"
+                                className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-3 active:bg-surface-2 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                 title="Rename conversation"
-                                aria-label="Rename conversation"
+                                aria-label={`Rename "${conv.title}"`}
                               >
                                 <Edit2 className="w-3 h-3" />
                               </button>
@@ -388,9 +426,9 @@ export function ConversationSidebar({
                                   e.stopPropagation();
                                   setDeletingId(conv.id);
                                 }}
-                                className="p-1 rounded text-text-muted hover:text-danger hover:bg-danger/10 transition"
+                                className="p-1 rounded-control text-text-muted hover:text-danger hover:bg-danger-soft active:bg-danger-border disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                 title="Delete conversation"
-                                aria-label="Delete conversation"
+                                aria-label={`Delete "${conv.title}"`}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -411,29 +449,29 @@ export function ConversationSidebar({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar */}
-      <div className="hidden md:block h-full flex-shrink-0">{sidebarContent}</div>
+      {/* Desktop Persistent Sidebar (>= 1024px) */}
+      <div className="hidden lg:block h-full flex-shrink-0">{sidebarContent}</div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile / Tablet Drawer (< 1024px) */}
       <AnimatePresence>
         {isOpenMobile && (
-          <div className="fixed inset-0 z-40 md:hidden flex">
+          <div className="fixed inset-0 z-40 lg:hidden flex">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onCloseMobile}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 bg-surface-overlay"
               aria-hidden="true"
             />
-            {/* Drawer */}
+            {/* Drawer with focus trap behavior */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative z-50 h-full"
+              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+              className="relative z-50 h-full shadow-popover"
             >
               {sidebarContent}
             </motion.div>
