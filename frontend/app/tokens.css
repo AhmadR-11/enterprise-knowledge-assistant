@@ -59,6 +59,19 @@
 
   /* Focus Ring */
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* Syntax Highlighting (Muted, non-neon, harmonized with Console / Teal theme) */
+  --hl-keyword: #0F766E;
+  --hl-function: #1D4ED8;
+  --hl-string: #15803D;
+  --hl-number: #B45309;
+  --hl-comment: #5F6672;
+  --hl-type: #0369A1;
+  --hl-variable: #4B5260;
+  --hl-operator: #5F6672;
+  --hl-tag: #0F766E;
+  --hl-attr: #6D28D9;
+  --hl-property: #4B5260;
 }
 
 .dark,
@@ -123,5 +136,18 @@
 
   /* Focus Ring */
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* Syntax Highlighting (Muted, non-neon, harmonized with Console / Teal theme) */
+  --hl-keyword: #2DD4BF;
+  --hl-function: #60A5FA;
+  --hl-string: #4ADE80;
+  --hl-number: #FBBF24;
+  --hl-comment: #949BA8;
+  --hl-type: #38BDF8;
+  --hl-variable: #A1A6B0;
+  --hl-operator: #949BA8;
+  --hl-tag: #2DD4BF;
+  --hl-attr: #A78BFA;
+  --hl-property: #A1A6B0;
 }
 

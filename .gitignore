@@ -35,3 +35,9 @@ htmlcov/
 *.njsproj
 *.sln
 *.sw?
+
+# Screenshots and QA artifacts
+screenshots/
+*.png
+*.jpeg
+*.jpg

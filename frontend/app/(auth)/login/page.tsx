@@ -82,7 +82,7 @@ export default function LoginPage() {
         </div>
 
         {/* Centered Card */}
-        <div className="card border border-border bg-surface-1 shadow-popover p-6 rounded-card">
+        <div className="card border border-border bg-surface-1 shadow-md p-6 rounded-card">
           {/* Role Toggle Selector */}
           <div className="mb-4">
             <label className="label text-center mb-2">
@@ -96,7 +96,7 @@ export default function LoginPage() {
                     key={id}
                     type="button"
                     onClick={() => { setSelectedRole(id); setError(''); }}
-                    className={`relative flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-xs font-medium transition-colors z-10 ${
+                    className={`relative flex items-center justify-center gap-1.5 py-1.5 rounded-[6px] text-xs font-medium transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                       isSelected ? 'bg-surface-3 text-text-primary border border-border-strong shadow-subtle' : 'text-text-muted hover:text-text-secondary'
                     }`}
                   >
@@ -136,7 +136,8 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                  aria-label={show ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors p-1 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   onClick={() => setShow(!show)}
                 >
                   {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -153,11 +154,11 @@ export default function LoginPage() {
             <button
               id="login-btn"
               type="submit"
-              className="btn-primary w-full flex items-center justify-center gap-2 py-2 mt-2 rounded-control text-xs font-medium"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-2 mt-2 rounded-control text-xs font-medium min-h-[36px] active:bg-accent-fill/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               disabled={loading}
             >
-              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
-              {loading ? `Signing in…` : `Sign In as ${selectedRole.toUpperCase()}`}
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none mr-1" />}
+              {loading ? `Signing in…` : `Sign in as ${selectedRole.toUpperCase()}`}
             </button>
           </form>
         </div>

@@ -45,6 +45,18 @@ export default function FloatingChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Handle Escape key to close widget
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   // Load accessible documents on widget mount
   useEffect(() => {
     if (isOpen && docs.length === 0) {
@@ -137,8 +149,9 @@ export default function FloatingChatWidget() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-accent-fill text-accent-text flex items-center justify-center shadow-card border border-accent-border focus:outline-none"
+        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-accent-fill text-text-on-accent flex items-center justify-center shadow-md border border-accent-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         title="Ask AI Assistant"
+        aria-label={isOpen ? "Close AI Assistant" : "Open AI Assistant"}
       >
         {isOpen ? <X className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
       </motion.button>
@@ -151,7 +164,7 @@ export default function FloatingChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            className={`fixed bottom-20 right-6 z-50 bg-surface-1/95 backdrop-blur-xl border border-border shadow-popover rounded-card flex flex-col overflow-hidden transition-all duration-200 ${
+            className={`fixed bottom-20 right-6 z-50 bg-surface-1 border border-border-strong shadow-md rounded-card flex flex-col overflow-hidden ${
               isExpanded ? 'w-[680px] h-[600px]' : 'w-[400px] h-[480px]'
             }`}
           >
@@ -163,7 +176,7 @@ export default function FloatingChatWidget() {
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold text-text-primary tracking-tight">AI Knowledge Assistant</h3>
-                  <p className="text-[10px] text-text-muted">Type @ to mention documents</p>
+                  <p className="text-[11px] text-text-muted">Type @ to mention documents</p>
                 </div>
               </div>
 
@@ -171,23 +184,27 @@ export default function FloatingChatWidget() {
                 <button
                   type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition"
+                  className="p-1.5 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   title={isExpanded ? "Collapse" : "Expand"}
+                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
                 >
                   {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMessages([messages[0]])}
-                  className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition"
+                  className="p-1.5 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   title="Clear chat history"
+                  aria-label="Clear chat history"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-1 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 transition"
+                  className="p-1.5 rounded-control text-text-muted hover:text-text-primary hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  title="Close window"
+                  aria-label="Close chat window"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -241,10 +258,10 @@ export default function FloatingChatWidget() {
               {sending && (
                 <div className="flex gap-2 items-center">
                   <div className="w-6 h-6 rounded-control bg-surface-2 border border-border flex items-center justify-center text-accent">
-                    <Bot className="w-3.5 h-3.5 animate-pulse" />
+                    <Bot className="w-3.5 h-3.5 animate-pulse motion-reduce:animate-none" />
                   </div>
                   <div className="bg-surface-1 border border-border px-3 py-1.5 rounded-card flex items-center gap-2 text-xs text-text-muted">
-                    <Loader2 className="w-3 h-3 animate-spin text-accent" /> Thinking…
+                    <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none text-accent" /> Thinking…
                   </div>
                 </div>
               )}
@@ -276,10 +293,10 @@ export default function FloatingChatWidget() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
-                  className="absolute bottom-14 left-3 right-3 bg-surface-1 border border-border-strong rounded-card shadow-popover max-h-48 overflow-y-auto z-50 p-1 divide-y divide-border"
+                  className="absolute bottom-14 left-3 right-3 bg-surface-1 border border-border-strong rounded-card shadow-md max-h-48 overflow-y-auto z-50 p-1 divide-y divide-border"
                 >
-                  <div className="px-2 py-1 text-[10px] uppercase font-semibold tracking-wider text-text-muted flex items-center gap-1">
-                    <AtSign className="w-3 h-3 text-text-muted" /> Mention Document Filter ({filteredDocs.length})
+                  <div className="px-2 py-1 text-xs font-medium text-text-muted flex items-center gap-1">
+                    <AtSign className="w-3.5 h-3.5 text-text-muted" /> Mention document filter ({filteredDocs.length})
                   </div>
                   {filteredDocs.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-text-muted italic">No matching accessible documents</div>
@@ -289,7 +306,7 @@ export default function FloatingChatWidget() {
                         key={d._id}
                         type="button"
                         onClick={() => handleSelectMentionDoc(d)}
-                        className="w-full text-left px-2.5 py-1.5 rounded-control hover:bg-surface-2 text-xs text-text-secondary hover:text-text-primary flex items-center gap-2 transition"
+                        className="w-full text-left px-2.5 py-1.5 min-h-[36px] rounded-control hover:bg-surface-2 active:bg-surface-3 text-xs text-text-secondary hover:text-text-primary flex items-center gap-2 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
                         <FileText className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
                         <span className="truncate flex-1 font-medium">{d.title || d.originalName}</span>
@@ -304,7 +321,7 @@ export default function FloatingChatWidget() {
             <div className="p-2.5 bg-surface-1 border-t border-border flex-shrink-0">
               <form
                 onSubmit={e => { e.preventDefault(); handleSend(); }}
-                className="flex gap-1.5 items-center bg-surface-2 border border-border rounded-control px-2.5 py-1 focus-within:border-accent-border focus-within:ring-1 focus-within:ring-accent-soft"
+                className="flex gap-1.5 items-center bg-surface-2 border border-border rounded-control px-2.5 py-1 focus-within:border-accent-border focus-within:ring-2 focus-within:ring-accent-soft transition-colors duration-150"
               >
                 <button
                   type="button"
@@ -314,25 +331,28 @@ export default function FloatingChatWidget() {
                     setMentionQuery('');
                     inputRef.current?.focus();
                   }}
-                  className="text-text-muted hover:text-accent p-1 rounded-control transition"
+                  className="text-text-muted hover:text-accent p-1.5 rounded-control transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   title="Mention document (@)"
+                  aria-label="Mention document filter"
                 >
                   <AtSign className="w-3.5 h-3.5" />
                 </button>
 
                 <input
                   ref={inputRef}
-                  className="flex-1 bg-transparent border-0 text-xs text-text-primary focus:outline-none placeholder:text-text-muted py-1"
-                  placeholder="Ask AI or type @ to filter docs..."
+                  className="flex-1 bg-transparent border-0 text-xs text-text-primary focus:outline-none placeholder:text-text-muted py-1 min-h-[36px]"
+                  placeholder="Ask AI or type @ to filter docs…"
                   value={input}
                   onChange={handleInputChange}
                   disabled={sending}
+                  aria-label="Quick question input"
                 />
 
                 <button
                   type="submit"
                   disabled={!input.trim() || sending}
-                  className="btn-primary p-1.5 rounded-control text-accent-text disabled:opacity-40"
+                  className="btn-primary p-2 min-h-[36px] min-w-[36px] rounded-control text-text-on-accent disabled:opacity-40"
+                  aria-label="Send quick message"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>

@@ -29,6 +29,18 @@ export default function UsersPage() {
 
   useEffect(() => { fetchUsers(); }, []);
 
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModal(false);
+        setError('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModal]);
+
   const createUser = async () => {
     if (!form.email || !form.password) {
       setError('Please fill in all fields');
@@ -90,119 +102,133 @@ export default function UsersPage() {
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-text-primary tracking-tight">User Management</h1>
-          <p className="text-text-muted text-xs mt-0.5">
+          <h1 className="text-[22px] font-semibold text-text-primary tracking-tight">User Management</h1>
+          <p className="text-text-muted text-xs mt-1">
             <span className="font-mono tabular-nums">{users.length}</span> system accounts registered
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2"
+          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2 min-h-[36px] active:bg-accent-fill/90 disabled:opacity-50"
         >
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>New User</span>
         </button>
       </div>
 
-      {/* Search Input */}
+      {/* Search Toolbar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
         <input
-          className="input pl-9 text-xs"
-          placeholder="Search by email or role..."
+          className="input pl-9 text-xs min-h-[36px]"
+          placeholder="Search by email or role…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
       </div>
 
       {/* Users Table */}
-      <div className="card p-0 overflow-hidden shadow-subtle rounded-card border border-border">
-        <table className="w-full">
-          <thead className="bg-surface-1 border-b border-border">
-            <tr>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Email Address</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Access Role</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Created Date</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {loading ? (
-              <tr><td colSpan={4} className="td text-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-accent" />
-              </td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={4} className="td text-center py-12 text-text-muted text-xs">No users found</td></tr>
-            ) : (
-              <AnimatePresence>
-                {filtered.map(u => {
-                  const isSelf = currentUser?.id === u.id || currentUser?.email === u.email;
-                  return (
-                    <motion.tr
-                      key={u.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="table-row hover:bg-surface-2 transition-colors"
-                    >
-                      <td className="td py-3 px-4 font-medium text-text-primary text-xs">
-                        <div className="flex items-center gap-2">
-                          {isSelf && <UserCheck className="w-3.5 h-3.5 text-accent" />}
-                          <span>{u.email}</span>
-                        </div>
-                      </td>
-                      <td className="td py-3 px-4">
-                        <select
-                          value={u.role}
-                          onChange={e => changeRole(u.id, e.target.value as User['role'], u.email)}
-                          disabled={isSelf}
-                          title={isSelf ? "You cannot change your own role" : ""}
-                          className={`bg-surface-2 border border-border text-text-primary rounded-control px-2.5 py-1 text-xs focus:outline-none focus:border-accent-border ${isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-border-strong'}`}
-                        >
-                          {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </td>
-                      <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">
-                        {new Date(u.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="td py-3 px-4">
-                        {isSelf ? (
-                          <span className="badge badge-admin text-[10px] py-0 px-2">
-                            Current User
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => deleteUser(u.id, u.email)}
-                            className="btn-danger flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-control"
+      <div className="card p-0 overflow-hidden shadow-sm rounded-card border border-border">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left">
+            <thead className="bg-surface-1 border-b border-border sticky top-0 z-10">
+              <tr>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Email address</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Access role</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Created date</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loading ? (
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i} className="animate-pulse motion-reduce:animate-none">
+                    <td className="py-3 px-4"><div className="h-3.5 bg-surface-2 rounded w-44" /></td>
+                    <td className="py-3 px-4"><div className="h-6 bg-surface-2 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3.5 bg-surface-2 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-7 bg-surface-2 rounded w-16" /></td>
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={4} className="td text-center py-12 text-text-muted text-xs">No users found</td></tr>
+              ) : (
+                <AnimatePresence>
+                  {filtered.map(u => {
+                    const isSelf = currentUser?.id === u.id || currentUser?.email === u.email;
+                    return (
+                      <motion.tr
+                        key={u.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="table-row hover:bg-surface-2 transition-colors duration-150"
+                      >
+                        <td className="td py-2.5 px-4 font-medium text-text-primary text-xs">
+                          <div className="flex items-center gap-2">
+                            {isSelf && <UserCheck className="w-3.5 h-3.5 text-accent" />}
+                            <span>{u.email}</span>
+                          </div>
+                        </td>
+                        <td className="td py-2.5 px-4">
+                          <select
+                            value={u.role}
+                            onChange={e => changeRole(u.id, e.target.value as User['role'], u.email)}
+                            disabled={isSelf}
+                            title={isSelf ? "You cannot change your own role" : ""}
+                            aria-label={`Change role for ${u.email}`}
+                            className={`bg-surface-2 border border-border text-text-primary rounded-control px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-border-strong'}`}
                           >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Delete</span>
-                          </button>
-                        )}
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </AnimatePresence>
-            )}
-          </tbody>
-        </table>
+                            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </td>
+                        <td className="td py-2.5 px-4 text-text-muted text-xs font-mono tabular-nums">
+                          {new Date(u.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="td py-2.5 px-4">
+                          {isSelf ? (
+                            <span className="badge badge-admin text-xs py-0.5 px-2">
+                              Current user
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => deleteUser(u.id, u.email)}
+                              className="btn-danger flex items-center gap-1.5 px-2.5 py-1 min-h-[32px] text-xs rounded-control active:bg-danger-border"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          )}
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create Modal */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 bg-surface-overlay flex items-center justify-center z-50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-user-modal-title"
+            onClick={(e) => { if (e.target === e.currentTarget) { setShowModal(false); setError(''); } }}
+            className="fixed inset-0 bg-surface-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="card w-full max-w-sm border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card"
+              className="card w-full max-w-sm border border-border-strong bg-surface-1 shadow-md p-5 rounded-card"
             >
-              <h2 className="font-semibold text-text-primary text-sm mb-3.5">Create User Account</h2>
+              <h2 id="create-user-modal-title" className="font-semibold text-text-primary text-sm mb-3.5">Create User Account</h2>
               <div className="space-y-3.5">
                 <div>
                   <label className="label">Email Address</label>
@@ -234,12 +260,12 @@ export default function UsersPage() {
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
-                {error && <p className="text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-2.5 py-1.5">{error}</p>}
+                {error && <p className="text-danger text-xs bg-danger-soft border border-danger-border rounded-control px-2.5 py-1.5">{error}</p>}
                 <div className="flex gap-2.5 pt-2 border-t border-border">
                   <button
                     type="button"
                     onClick={() => { setShowModal(false); setError(''); }}
-                    className="btn-ghost flex-1 text-xs py-2 border border-border text-text-secondary hover:text-text-primary"
+                    className="btn-ghost flex-1 text-xs py-2 min-h-[36px] border border-border text-text-secondary hover:text-text-primary active:bg-surface-3 disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -247,9 +273,9 @@ export default function UsersPage() {
                     type="button"
                     onClick={createUser}
                     disabled={creating}
-                    className="btn-primary flex-1 flex items-center justify-center gap-1.5 text-xs py-2"
+                    className="btn-primary flex-1 flex items-center justify-center gap-1.5 text-xs py-2 min-h-[36px] active:bg-accent-fill/90 disabled:opacity-50"
                   >
-                    {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {creating && <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" />}
                     <span>Create Account</span>
                   </button>
                 </div>

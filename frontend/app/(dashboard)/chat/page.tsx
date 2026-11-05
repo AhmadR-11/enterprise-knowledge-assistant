@@ -226,7 +226,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] rounded-control bg-surface-2 border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-surface-3 lg:hidden transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] rounded-control bg-surface-2 border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-surface-3 active:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed lg:hidden transition-colors duration-150 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               aria-label="Open conversation history drawer"
             >
               <MessageSquare className="w-3.5 h-3.5 text-text-muted" />
@@ -234,10 +234,10 @@ export default function ChatPage() {
             </button>
 
             <div>
-              <h1 className="text-[17px] font-semibold text-text-primary tracking-tight flex items-center gap-2">
+              <h1 className="text-[20px] font-semibold text-text-primary tracking-tight flex items-center gap-2">
                 <span>Ask AI / Chat</span>
               </h1>
-              <p className="text-text-muted text-[11px] truncate hidden sm:block">
+              <p className="text-text-muted text-xs truncate hidden sm:block">
                 RAG-grounded retrieval with persistent conversations
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function ChatPage() {
                 aria-checked={mode === 'streaming'}
                 onClick={() => setMode('streaming')}
                 className={clsx(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  'flex items-center gap-1.5 px-2.5 py-1 min-h-[30px] rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 disabled:cursor-not-allowed',
                   mode === 'streaming'
                     ? 'bg-surface-3 text-text-primary border border-border-strong shadow-sm'
                     : 'text-text-muted hover:text-text-secondary active:bg-surface-3'
@@ -273,7 +273,7 @@ export default function ChatPage() {
                 aria-checked={mode === 'non-streaming'}
                 onClick={() => setMode('non-streaming')}
                 className={clsx(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  'flex items-center gap-1.5 px-2.5 py-1 min-h-[30px] rounded-[6px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 disabled:cursor-not-allowed',
                   mode === 'non-streaming'
                     ? 'bg-surface-3 text-text-primary border border-border-strong shadow-sm'
                     : 'text-text-muted hover:text-text-secondary active:bg-surface-3'
@@ -308,7 +308,7 @@ export default function ChatPage() {
             <div className="max-w-[760px] mx-auto w-full space-y-6">
               {isLoadingHistory ? (
                 <div className="flex flex-col items-center justify-center py-24 space-y-2.5 text-text-muted">
-                  <Loader2 className="w-5 h-5 animate-spin text-accent" />
+                  <Loader2 className="w-5 h-5 animate-spin motion-reduce:animate-none text-accent" />
                   <p className="text-xs">Loading chat history…</p>
                 </div>
               ) : (
@@ -330,7 +330,7 @@ export default function ChatPage() {
                   </AnimatePresence>
 
                   {!hasConversations && (
-                    <EmptyChatState onSelectPrompt={handleSend} />
+                    <EmptyChatState onSelectPrompt={(prompt) => setInput(prompt)} />
                   )}
                 </>
               )}
@@ -339,11 +339,17 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Floating Jump to Latest Button (placed cleanly above composer) */}
+          {/* 32px soft fade mask above the composer */}
+          <div
+            className="pointer-events-none h-8 -mt-8 bg-gradient-to-t from-bg to-transparent relative z-10 w-full flex-shrink-0"
+            aria-hidden="true"
+          />
+
+          {/* Floating Jump to Latest Button (centered 12px above composer) */}
           <JumpToLatestButton visible={!isAtBottom} onClick={jumpToBottom} />
 
           {/* Composer Footer (Floating, max-w 760px) */}
-          <div className="px-4 pb-4 pt-1 bg-gradient-to-t from-bg via-bg/95 to-transparent flex-shrink-0 z-10">
+          <div className="px-4 pb-4 pt-1 bg-bg flex-shrink-0 z-10">
             <ChatInput
               input={input}
               onChange={setInput}

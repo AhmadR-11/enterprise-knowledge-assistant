@@ -2,7 +2,6 @@
 /* critique: Step 1 tokens, dark mode parity, semantic variables, global color migration */
 @import './tokens.css';
 @import 'katex/dist/katex.min.css';
-@import 'highlight.js/styles/github-dark.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -102,6 +101,36 @@
     box-shadow: var(--focus-ring);
   }
   .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, transform 150ms ease-out;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-3);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn-secondary:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  .btn-secondary:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
@@ -236,6 +265,77 @@
   }
 }
 
+/* Syntax Highlighting Token Mapping (Mapped to semantic tokens, non-neon, dark/light parity) */
+pre code.hljs {
+  display: block;
+  overflow-x: auto;
+  color: var(--text-primary);
+  background: transparent;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section {
+  color: var(--hl-keyword);
+  font-weight: 600;
+}
+.hljs-function,
+.hljs-title,
+.hljs-title.function_ {
+  color: var(--hl-function);
+  font-weight: 600;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--hl-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-type,
+.hljs-built_in,
+.hljs-class .hljs-title {
+  color: var(--hl-type);
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+  color: var(--hl-variable);
+}
+.hljs-operator,
+.hljs-punctuation {
+  color: var(--hl-operator);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--hl-tag);
+}
+.hljs-attr,
+.hljs-attribute {
+  color: var(--hl-attr);
+}
+.hljs-subst {
+  color: var(--text-primary);
+}
+.hljs-meta {
+  color: var(--hl-comment);
+  font-weight: 600;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
+}
+
 /* KaTeX styling overrides */
 .katex-display {
   margin: 0.75rem 0 !important;
@@ -247,6 +347,20 @@
 .katex {
   font-size: 1.05em;
   color: var(--text-primary);
+}
+.katex .mord,
+.katex .mrel,
+.katex .mop,
+.katex .minner,
+.katex .mopen,
+.katex .mclose,
+.katex .mpunct {
+  color: var(--text-primary);
+}
+.katex-error {
+  color: inherit !important;
+  background: transparent !important;
+  border: none !important;
 }
 
 /* Reduced motion support */

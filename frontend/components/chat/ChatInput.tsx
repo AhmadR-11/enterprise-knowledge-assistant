@@ -19,7 +19,7 @@ export function ChatInput({
   onSend,
   onStop,
   status,
-  placeholder = 'Ask a question about documents in your space(s)...'
+  placeholder = 'Ask a question about documents in your space(s)…'
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isBusy = status === 'waiting' || status === 'streaming';
@@ -64,7 +64,7 @@ export function ChatInput({
             onSend();
           }
         }}
-        className="flex items-end gap-2 bg-surface-1 border border-border p-2 rounded-composer shadow-card focus-within:border-accent-border focus-within:ring-2 focus-within:ring-accent-soft transition-all duration-150"
+        className="flex items-end gap-2 bg-surface-1 border border-border p-2 rounded-[20px] shadow-sm focus-within:border-accent-border focus-within:ring-[3px] focus-within:ring-accent-soft transition-colors duration-150"
       >
         <textarea
           ref={textareaRef}
@@ -83,9 +83,9 @@ export function ChatInput({
             onClick={onStop}
             aria-label="Stop generating answer (or press Escape)"
             title="Stop generating (Esc)"
-            className="w-9 h-9 rounded-control bg-surface-3 hover:bg-surface-2 border border-border-strong text-text-primary flex items-center justify-center flex-shrink-0 transition-all duration-150 shadow-subtle"
+            className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-control bg-surface-3 hover:bg-surface-2 active:bg-surface-2 border border-border-strong text-text-primary flex items-center justify-center flex-shrink-0 transition-colors duration-150 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-safe:active:scale-[0.96] motion-reduce:transform-none"
           >
-            <Square className="w-3.5 h-3.5 fill-current animate-pulse motion-reduce:animate-none" />
+            <Square className="w-3.5 h-3.5 fill-current" />
           </button>
         ) : (
           <button
@@ -93,14 +93,14 @@ export function ChatInput({
             disabled={!input.trim()}
             aria-label="Send message"
             title="Send message (Enter)"
-            className="w-9 h-9 rounded-control bg-accent-fill text-accent-text flex items-center justify-center flex-shrink-0 transition-all duration-150 hover:brightness-105 active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed shadow-subtle"
+            className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-control bg-accent-fill text-text-on-accent flex items-center justify-center flex-shrink-0 transition-colors duration-150 hover:brightness-105 active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent motion-safe:active:scale-[0.96] motion-reduce:transform-none"
           >
             <ArrowUp className="w-4 h-4 stroke-[2.5]" />
           </button>
         )}
       </form>
 
-      <div className="text-center text-2xs text-text-muted mt-1.5 select-none">
+      <div className="text-center text-xs text-text-muted mt-2 select-none">
         <span>Enter to send, Shift+Enter for a new line</span>
       </div>
     </div>

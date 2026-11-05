@@ -15,7 +15,7 @@ function StatusBadge({ status }: { status: Document['status'] }) {
     pending:    'badge-pending',
   };
   return (
-    <span className={`badge ${map[status] || 'badge-pending'} text-[10px] font-mono px-2 py-0.5 rounded-control uppercase tracking-wider`}>
+    <span className={`badge ${map[status] || 'badge-pending'} text-xs font-medium px-2 py-0.5 rounded-control capitalize`}>
       {status}
     </span>
   );
@@ -58,6 +58,15 @@ export default function DocumentsPage() {
       }
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!editDoc) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditDoc(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editDoc]);
 
   const uploadFile = async () => {
     if (!file || !spaceId) {
@@ -160,20 +169,20 @@ export default function DocumentsPage() {
       className="p-6 max-w-5xl mx-auto space-y-6"
     >
       <div>
-        <h1 className="text-xl font-semibold text-text-primary tracking-tight">Documents</h1>
-        <p className="text-text-muted text-xs mt-0.5">
+        <h1 className="text-[22px] font-semibold text-text-primary tracking-tight">Documents</h1>
+        <p className="text-text-muted text-xs mt-1">
           <span className="font-mono tabular-nums">{docs.length}</span> documents indexed across your assigned knowledge space(s)
         </p>
       </div>
 
       {/* Upload Zone */}
       {canUpload ? (
-        <div className="card border-dashed border border-border hover:border-border-strong bg-surface-1/40 hover:bg-surface-1/70 transition-all rounded-card shadow-subtle p-5">
+        <div className="card border-dashed border border-border hover:border-border-strong bg-surface-1/40 hover:bg-surface-1/70 transition-colors duration-150 rounded-card shadow-subtle p-5">
           <div
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={onDrop}
-            className={`flex flex-col items-center justify-center py-6 gap-2.5 rounded-control transition-all cursor-pointer ${drag ? 'bg-surface-2 border border-accent-border' : 'bg-surface-2/40'}`}
+            className={`flex flex-col items-center justify-center py-6 gap-2.5 rounded-control transition-colors duration-150 cursor-pointer ${drag ? 'bg-surface-2 border border-accent-border' : 'bg-surface-2/40'}`}
             onClick={() => fileRef.current?.click()}
           >
             <div className="w-10 h-10 rounded-control bg-surface-2 border border-border flex items-center justify-center text-accent shadow-subtle">
@@ -189,7 +198,7 @@ export default function DocumentsPage() {
                   'Drag & drop or click to upload file'
                 )}
               </p>
-              <p className="text-text-muted text-[11px] mt-0.5">PDF, DOCX, TXT, MD — max 20MB</p>
+              <p className="text-text-muted text-[11px] mt-0.5">PDF, DOCX, TXT, MD (max 20MB)</p>
             </div>
             <input
               ref={fileRef}
@@ -210,29 +219,29 @@ export default function DocumentsPage() {
               value={spaceId}
               onChange={e => setSpaceId(e.target.value)}
             >
-              <option value="">Select Assigned Space...</option>
+              <option value="">Select Assigned Space…</option>
               {spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
             <button
               type="button"
               onClick={uploadFile}
               disabled={uploading || !file || !spaceId}
-              className="btn-primary text-xs whitespace-nowrap px-4 py-2"
+              className="btn-primary text-xs whitespace-nowrap px-4 py-2 min-h-[36px] active:bg-accent-fill/90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
-              {uploading ? 'Processing...' : 'Upload File'}
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none mr-1.5" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+              {uploading ? 'Processing…' : 'Upload File'}
             </button>
           </div>
 
           {spaces.length === 0 && (
-            <div className="mt-3 flex items-center gap-2 text-warning text-xs bg-warning/10 border border-warning/20 rounded-control px-3 py-2">
+            <div className="mt-3 flex items-center gap-2 text-warning text-xs bg-warning-soft border border-warning-border rounded-control px-3 py-2">
               <ShieldAlert className="w-4 h-4 flex-shrink-0" />
               <span>You are not assigned to any space yet. Contact an Administrator to assign you to a space.</span>
             </div>
           )}
 
           {uploadError && (
-            <div className="mt-3 flex items-center gap-2 text-danger text-xs bg-danger/10 border border-danger/20 rounded-control px-3 py-2">
+            <div className="mt-3 flex items-center gap-2 text-danger text-xs bg-danger-soft border border-danger-border rounded-control px-3 py-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{uploadError}</span>
             </div>
@@ -269,40 +278,48 @@ export default function DocumentsPage() {
       </div>
 
       {/* Documents Table */}
-      <div className="card p-0 overflow-hidden shadow-subtle rounded-card border border-border">
-        <table className="w-full">
-          <thead className="bg-surface-1 border-b border-border">
-            <tr>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Document</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Status</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Chunks</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Owner</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Uploaded</th>
-              <th className="th py-3 px-4 text-2xs font-semibold text-text-muted">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {loading ? (
-              <tr><td colSpan={6} className="td text-center py-12">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto text-accent" />
-              </td></tr>
-            ) : filteredDocs.length === 0 ? (
-              <tr><td colSpan={6} className="td text-center py-12 text-text-muted text-xs">No documents match the selected status</td></tr>
-            ) : (
-              <AnimatePresence>
-                {filteredDocs.map(doc => {
-                  const isOwner = doc.uploadedBy === currentUser?.id;
-                  const canEditMeta = currentUser?.role === 'admin' || isOwner;
-                  const canDelete = currentUser?.role === 'admin' || isOwner;
+      <div className="card p-0 overflow-hidden shadow-sm rounded-card border border-border">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left">
+            <thead className="bg-surface-1 border-b border-border sticky top-0 z-10">
+              <tr>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Document</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Status</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Chunks</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Owner</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Uploaded</th>
+                <th className="py-2.5 px-4 text-xs font-medium text-text-muted">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loading ? (
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i} className="animate-pulse motion-reduce:animate-none">
+                    <td className="py-3 px-4"><div className="h-4 bg-surface-2 rounded w-48" /></td>
+                    <td className="py-3 px-4"><div className="h-6 bg-surface-2 rounded w-16" /></td>
+                    <td className="py-3 px-4"><div className="h-3.5 bg-surface-2 rounded w-12" /></td>
+                    <td className="py-3 px-4"><div className="h-3.5 bg-surface-2 rounded w-20" /></td>
+                    <td className="py-3 px-4"><div className="h-3.5 bg-surface-2 rounded w-24" /></td>
+                    <td className="py-3 px-4"><div className="h-7 bg-surface-2 rounded w-14" /></td>
+                  </tr>
+                ))
+              ) : filteredDocs.length === 0 ? (
+                <tr><td colSpan={6} className="td text-center py-12 text-text-muted text-xs">No documents match the selected status</td></tr>
+              ) : (
+                <AnimatePresence>
+                  {filteredDocs.map(doc => {
+                    const isOwner = doc.uploadedBy === currentUser?.id;
+                    const canEditMeta = currentUser?.role === 'admin' || isOwner;
+                    const canDelete = currentUser?.role === 'admin' || isOwner;
 
-                  return (
-                    <motion.tr
-                      key={doc._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="table-row hover:bg-surface-2 transition-colors"
-                    >
+                    return (
+                      <motion.tr
+                        key={doc._id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="table-row hover:bg-surface-2 transition-colors duration-150"
+                      >
                       <td className="td py-3 px-4">
                         <div className="flex items-start gap-2.5">
                           <div className="w-7 h-7 rounded-control bg-surface-2 border border-border flex items-center justify-center flex-shrink-0 mt-0.5 text-text-muted">
@@ -333,14 +350,14 @@ export default function DocumentsPage() {
                         </div>
                       </td>
                       <td className="td py-3 px-4"><StatusBadge status={doc.status} /></td>
-                      <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">{doc.chunkCount || '—'}</td>
+                      <td className="td py-3 px-4 text-text-muted text-xs font-mono tabular-nums">{doc.chunkCount ?? 0}</td>
                       <td className="td py-3 px-4">
                         {isOwner ? (
                           <span className="badge badge-editor text-[10px] py-0 px-1.5">
                             You
                           </span>
                         ) : (
-                          <span className="text-xs text-text-muted font-mono tabular-nums">User #{doc.uploadedBy}</span>
+                          <span className="text-xs text-text-muted">User #<span className="font-mono tabular-nums">{doc.uploadedBy}</span></span>
                         )}
                       </td>
                       <td className="td py-3 px-4 text-text-muted text-xs whitespace-nowrap font-mono tabular-nums">
@@ -389,18 +406,25 @@ export default function DocumentsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Edit Metadata Modal */}
       <AnimatePresence>
         {editDoc && (
-          <div className="fixed inset-0 bg-surface-overlay flex items-center justify-center z-50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-doc-modal-title"
+            onClick={(e) => { if (e.target === e.currentTarget) setEditDoc(null); }}
+            className="fixed inset-0 bg-surface-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card space-y-4"
+              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-md p-5 rounded-card space-y-4"
             >
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
@@ -408,14 +432,14 @@ export default function DocumentsPage() {
                     <Pencil className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h2 className="font-semibold text-text-primary text-xs">Edit Document Metadata</h2>
-                    <p className="text-[10px] text-text-muted truncate max-w-[200px]">{editDoc.originalName}</p>
+                    <h2 id="edit-doc-modal-title" className="font-semibold text-text-primary text-xs">Edit Document Metadata</h2>
+                    <p className="text-[11px] text-text-muted truncate max-w-[200px]">{editDoc.originalName}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setEditDoc(null)}
-                  className="text-text-muted hover:text-text-primary p-1 rounded-control"
+                  className="text-text-muted hover:text-text-primary p-1 rounded-control min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <X className="w-4 h-4" />
                 </button>

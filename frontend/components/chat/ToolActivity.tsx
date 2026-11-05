@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { ToolActivityItem } from '@/types';
 
 interface ToolActivityProps {
@@ -55,7 +55,7 @@ export function ToolActivity({ activities }: ToolActivityProps) {
     <div
       role="status"
       aria-label="Assistant tool activity"
-      className="mb-2.5 space-y-1"
+      className="mb-2.5 flex flex-wrap gap-1.5"
     >
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {latestAnnouncement}
@@ -68,7 +68,7 @@ export function ToolActivity({ activities }: ToolActivityProps) {
         return (
           <div
             key={activity.id}
-            className="inline-flex items-center justify-between gap-3 px-2.5 py-1 rounded-control bg-surface-1 border border-border text-xs text-text-secondary mr-2"
+            className="inline-flex items-center justify-between gap-2.5 px-2.5 py-1 rounded-control bg-surface-2/70 border border-border text-[12px] text-text-secondary"
           >
             <div className="flex items-center gap-1.5 min-w-0">
               {activity.status === 'running' && (
@@ -78,8 +78,8 @@ export function ToolActivity({ activities }: ToolActivityProps) {
                 />
               )}
               {activity.status === 'done' && (
-                <CheckCircle2
-                  className="w-3.5 h-3.5 text-accent flex-shrink-0"
+                <Check
+                  className="w-3.5 h-3.5 text-accent flex-shrink-0 stroke-[2.2]"
                   aria-hidden="true"
                 />
               )}

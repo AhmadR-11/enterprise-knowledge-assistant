@@ -529,6 +529,50 @@ curl -N -X POST http://localhost:5000/api/chat/stream \
 
 ---
 
+## 🎨 Theming System & Design Tokens
+
+Cortex features a semantic design token system built on modern Hallmark design principles with first-class support for both Light and Dark modes.
+
+### 1. Semantic Design Tokens (`frontend/app/tokens.css`)
+All styling is driven entirely by CSS custom properties with zero hardcoded palette classes or raw hex codes in components:
+- **Base Surfaces:** `--bg`, `--sidebar`, `--surface-1`, `--surface-2`, `--surface-3`, `--surface-code`, `--surface-overlay`
+- **Borders:** `--border` (subtle hairline), `--border-strong`
+- **Typography:** `--text-primary`, `--text-secondary`, `--text-muted`, `--text-on-accent`
+- **Accent Palette:** `--accent`, `--accent-fill`, `--accent-soft`, `--accent-border`, `--focus-ring`
+- **Status Semantics:** `--success`, `--warning`, `--danger`, `--info` (with corresponding `-soft` and `-border` variants)
+- **Syntax Highlighting:** Token-mapped variables (`--hl-keyword`, `--hl-function`, `--hl-string`, etc.) harmonized to match the selected mode.
+
+### 2. Light / Dark Theme Switching
+- **Default:** Automatically follows system preference via `next-themes`.
+- **Persistence:** Persisted locally in `localStorage` under key `theme` across page reloads and authentication sessions.
+- **Hydration Safe:** Zero flash of mismatched theme on load (`suppressHydrationWarning`).
+- **Control:** Accessible `ThemeToggle` component (36px min touch target, dynamic aria-label) available on the Login page and in the authenticated app shell.
+
+### 3. Customizing the Accent Color
+To change the product accent theme (e.g. from Graphite & Teal to another brand color), modify **only** the token definitions in `frontend/app/tokens.css`:
+```css
+/* Light Mode */
+:root {
+  --accent: #0F766E;        /* Primary accent / link / focus ring */
+  --accent-fill: #0F766E;   /* Button fill */
+  --text-on-accent: #FFFFFF;/* Text contrast */
+  --accent-soft: rgba(15, 118, 110, 0.08);
+  --accent-border: rgba(15, 118, 110, 0.25);
+}
+
+/* Dark Mode */
+.dark {
+  --accent: #2DD4BF;
+  --accent-fill: #14B8A6;
+  --text-on-accent: #04110F;
+  --accent-soft: rgba(45, 212, 191, 0.10);
+  --accent-border: rgba(45, 212, 191, 0.25);
+}
+```
+All components, buttons, navigation indicators, streaming carets, syntax highlighters, and charts automatically inherit the updated palette without any component-level code changes.
+
+---
+
 ## ⚠️ Known Limitations & Roadmap
 
 In adherence to strict engineering integrity, the following items represent current architectural boundaries and scheduled roadmap items:

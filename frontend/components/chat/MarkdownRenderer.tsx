@@ -90,16 +90,16 @@ function CodeBlock({ children, className }: { children: React.ReactNode; classNa
   };
 
   return (
-    <div className="relative my-3 rounded-card overflow-hidden border border-border bg-surface-code shadow-subtle group">
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-surface-1 border-b border-border text-2xs text-text-muted select-none">
-        <span className="font-mono uppercase font-semibold text-text-secondary">
+    <div className="relative my-3 rounded-card overflow-hidden border border-border bg-surface-code shadow-sm group">
+      <div className="flex items-center justify-between px-3.5 py-1 bg-surface-1 border-b border-border text-xs text-text-muted select-none">
+        <span className="font-mono text-xs font-medium text-text-secondary lowercase">
           {language || 'code'}
         </span>
         <button
           type="button"
           onClick={handleCopy}
           aria-label={copied ? 'Code copied to clipboard' : 'Copy code to clipboard'}
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-control hover:bg-surface-2 text-text-muted hover:text-text-primary transition"
+          className="flex items-center gap-1.5 px-2 py-1 min-h-[36px] rounded-control hover:bg-surface-2 active:bg-surface-2 text-text-muted hover:text-text-primary transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           {copied ? (
             <>
@@ -127,16 +127,42 @@ function MarkdownRendererComponent({
   sources,
   onOpenCitation
 }: MarkdownRendererProps) {
-  // Pre-process stream text: safely auto-close open code fences
+  // Pre-process stream text: safely auto-close open code fences and keep incomplete math plain text until closed
   const sanitizedContent = useMemo(() => {
     let text = content;
-    if (isStreaming) {
-      const fenceMatches = text.match(/```/g);
-      if (fenceMatches && fenceMatches.length % 2 !== 0) {
-        text += '\n```';
+    if (!isStreaming || !text) return text;
+
+    // 1. Incomplete code fence handling: safely auto-close open code fences
+    const fenceMatches = text.match(/```/g);
+    if (fenceMatches && fenceMatches.length % 2 !== 0) {
+      return text + '\n```';
+    }
+
+    // 2. Incomplete math handling during streaming:
+    // Split by complete code blocks so math inside code blocks is never touched
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    let lastPart = parts[parts.length - 1];
+
+    // Incomplete display math $$: escape unclosed opening $$ so it stays plain text until closed
+    const displayMatches = lastPart.match(/(?<!\\)\$\$/g) || [];
+    if (displayMatches.length % 2 !== 0) {
+      const lastIdx = lastPart.lastIndexOf('$$');
+      if (lastIdx !== -1) {
+        lastPart = lastPart.slice(0, lastIdx) + '\\$\\$' + lastPart.slice(lastIdx + 2);
       }
     }
-    return text;
+
+    // Incomplete inline math $: escape unclosed opening $ so it stays plain text until closed
+    const singleMatches = lastPart.match(/(?<!\\)\$(?!\$)/g) || [];
+    if (singleMatches.length % 2 !== 0) {
+      const lastIdx = lastPart.lastIndexOf('$');
+      if (lastIdx !== -1) {
+        lastPart = lastPart.slice(0, lastIdx) + '\\$' + lastPart.slice(lastIdx + 1);
+      }
+    }
+
+    parts[parts.length - 1] = lastPart;
+    return parts.join('');
   }, [content, isStreaming]);
 
   return (
@@ -145,7 +171,7 @@ function MarkdownRendererComponent({
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[
           rehypeHighlight,
-          [rehypeKatex, { throwOnError: false, strict: false }]
+          [rehypeKatex, { throwOnError: false, strict: false, errorColor: 'inherit' }]
         ]}
         components={{
           a: ({ href, children, ...props }) => {
@@ -163,7 +189,7 @@ function MarkdownRendererComponent({
                     e.stopPropagation();
                     onOpenCitation(matchedSource, e.currentTarget);
                   }}
-                  className="inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 transition font-medium cursor-pointer"
+                  className="inline-flex items-center gap-1 text-accent hover:underline underline-offset-2 transition-colors duration-150 font-medium cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
                   title={`View citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
                   aria-label={`Open citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
                 >
@@ -178,7 +204,7 @@ function MarkdownRendererComponent({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline underline-offset-2 transition font-medium"
+                className="text-accent hover:underline underline-offset-2 transition-colors duration-150 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm"
                 {...props}
               >
                 {children}
@@ -208,7 +234,7 @@ function MarkdownRendererComponent({
                     e.stopPropagation();
                     onOpenCitation(matchedSource, e.currentTarget);
                   }}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded-control bg-accent-soft hover:bg-accent-soft/80 border border-accent-border text-accent font-mono text-[11px] transition-all cursor-pointer shadow-subtle mx-1 focus:outline-none focus:ring-2 focus:ring-accent-border align-baseline"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 my-0.5 rounded bg-accent-soft hover:bg-accent-soft/80 active:bg-accent-soft/90 border border-accent-border text-accent font-mono text-[12px] transition-colors duration-150 cursor-pointer shadow-sm mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent align-baseline"
                   title={`Click to view document details for ${matchedSource.documentTitle || matchedSource.originalName}`}
                   aria-label={`Open citation details for ${matchedSource.documentTitle || matchedSource.originalName}`}
                 >
@@ -222,7 +248,7 @@ function MarkdownRendererComponent({
 
             return (
               <code
-                className="px-1.5 py-0.5 rounded-control bg-surface-3 border border-border text-text-primary font-mono text-[12px]"
+                className="px-1.5 py-0.5 rounded bg-surface-3 border border-border text-text-primary font-mono text-[13px]"
                 {...props}
               >
                 {children}
@@ -260,19 +286,19 @@ function MarkdownRendererComponent({
           ),
           li: ({ children }) => <li className="leading-[1.65]">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-border-strong pl-3.5 my-2.5 text-text-muted italic bg-surface-1/40 py-1 rounded-r-control">
+            <blockquote className="border-l-2 border-border-strong pl-3.5 my-2.5 text-text-secondary italic">
               {children}
             </blockquote>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-3 rounded-card border border-border bg-surface-1/50 shadow-subtle">
+            <div className="overflow-x-auto my-3 rounded-card border border-border bg-surface-1 shadow-sm">
               <table className="min-w-full text-left text-xs divide-y divide-border">
                 {children}
               </table>
             </div>
           ),
           thead: ({ children }) => (
-            <thead className="bg-surface-1 text-2xs uppercase tracking-wider text-text-muted font-semibold">
+            <thead className="bg-surface-2 border-b border-border">
               {children}
             </thead>
           ),
@@ -283,7 +309,7 @@ function MarkdownRendererComponent({
             <tr className="hover:bg-surface-2 transition-colors duration-100">{children}</tr>
           ),
           th: ({ children }) => (
-            <th className="px-3.5 py-2.5 font-semibold text-text-muted uppercase tracking-wider text-2xs">
+            <th className="px-3.5 py-2.5 text-xs font-medium text-text-muted">
               {children}
             </th>
           ),

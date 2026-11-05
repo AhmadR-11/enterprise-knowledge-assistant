@@ -21,17 +21,18 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.2 } }
 };
 
-function StatCard({ icon: Icon, label, value }: {
-  icon: React.ElementType; label: string; value: number | string;
+function StatCard({ icon: Icon, label, value, trend }: {
+  icon: React.ElementType; label: string; value: number | string; trend?: string;
 }) {
   return (
-    <motion.div variants={itemVariants} className="card card-hover">
+    <motion.div variants={itemVariants} className="card bg-surface-1 border border-border shadow-sm p-4 rounded-card hover:bg-surface-2 transition-colors duration-150">
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-2xs font-medium text-text-muted mb-1">{label}</p>
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-text-muted">{label}</p>
           <p className="text-2xl font-bold text-text-primary tabular-nums tracking-tight">{value}</p>
+          {trend && <p className="text-[11px] text-text-muted font-medium">{trend}</p>}
         </div>
-        <div className="w-9 h-9 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-muted shadow-subtle">
+        <div className="w-9 h-9 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-muted shadow-sm">
           <Icon className="w-4 h-4" />
         </div>
       </div>
@@ -45,13 +46,13 @@ function ActionBadge({ action }: { action: string }) {
   const isWarning = action.includes('WARNING');
 
   let style = 'badge bg-surface-2 text-text-secondary border-border';
-  if (isSuccess) style = 'badge bg-success/10 text-success border-success/20';
-  if (isFailure) style = 'badge bg-danger/10 text-danger border-danger/20';
-  if (isWarning) style = 'badge bg-warning/10 text-warning border-warning/20';
+  if (isSuccess) style = 'badge bg-success-soft text-success border-success-border';
+  if (isFailure) style = 'badge bg-danger-soft text-danger border-danger-border';
+  if (isWarning) style = 'badge bg-warning-soft text-warning border-warning-border';
 
   return (
-    <span className={`${style} text-[10px] font-mono px-2 py-0.5 rounded-control`}>
-      {action.replace(/_/g, ' ')}
+    <span className={`${style} text-xs font-medium px-2 py-0.5 rounded-control capitalize`}>
+      {action.replace(/_/g, ' ').toLowerCase()}
     </span>
   );
 }
@@ -79,7 +80,7 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-full min-h-[50vh]">
-      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
     </div>
   );
 
@@ -105,16 +106,16 @@ export default function DashboardPage() {
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-text-primary tracking-tight">Dashboard</h1>
-          <p className="text-text-muted text-xs mt-0.5">Real-time system metrics, analytics & recent activity</p>
+          <h1 className="text-[22px] font-semibold text-text-primary tracking-tight">Dashboard</h1>
+          <p className="text-text-muted text-xs mt-1">Real-time system metrics, analytics & recent activity</p>
         </div>
         <button
           type="button"
           onClick={() => fetchStats(true)}
           disabled={refreshing}
-          className="btn-ghost flex items-center gap-1.5 text-xs bg-surface-2 border border-border rounded-control hover:bg-surface-3 transition py-1.5 px-3"
+          className="btn-ghost flex items-center gap-1.5 text-xs bg-surface-2 border border-border rounded-control hover:bg-surface-3 active:bg-surface-3 min-h-[36px] transition-colors duration-150 py-1.5 px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-accent' : 'text-text-muted'}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin motion-reduce:animate-none text-accent' : 'text-text-muted'}`} />
           <span>Refresh</span>
         </button>
       </div>
@@ -183,7 +184,7 @@ export default function DashboardPage() {
           {stats?.recentActivity?.length ? (
             <div className="space-y-2 flex-1 overflow-y-auto pr-1 max-h-60">
               {stats.recentActivity.map((log: AuditLog) => (
-                <div key={log._id} className="flex items-center justify-between gap-3 p-2 rounded-control bg-surface-2 border border-border hover:border-border-strong transition">
+                <div key={log._id} className="flex items-center justify-between gap-3 p-2 rounded-control bg-surface-2 border border-border hover:border-border-strong transition-colors duration-150">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-text-primary truncate">{log.email}</p>
                     <div className="mt-0.5">

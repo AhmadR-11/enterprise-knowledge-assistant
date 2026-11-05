@@ -32,6 +32,15 @@ export default function SpacesPage() {
     api.get('/users').then(r => setUsers(r.data.data.users)).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!assignModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAssignModal(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [assignModal]);
+
   const createSpace = async () => {
     if (!newName.trim()) return;
     setCreating(true);
@@ -121,15 +130,15 @@ export default function SpacesPage() {
     >
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-text-primary tracking-tight">Knowledge Spaces</h1>
-          <p className="text-text-muted text-xs mt-0.5">
+          <h1 className="text-[22px] font-semibold text-text-primary tracking-tight">Knowledge Spaces</h1>
+          <p className="text-text-muted text-xs mt-1">
             <span className="font-mono tabular-nums">{spaces.length}</span> logical knowledge spaces configured
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2"
+          className="btn-primary flex items-center gap-1.5 text-xs px-3.5 py-2 min-h-[36px] active:bg-accent-fill/90 disabled:opacity-50"
         >
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>New Space</span>
@@ -157,15 +166,15 @@ export default function SpacesPage() {
               type="button"
               onClick={createSpace}
               disabled={creating}
-              className="btn-primary flex items-center gap-1.5 text-xs px-3.5"
+              className="btn-primary flex items-center gap-1.5 text-xs px-3.5 min-h-[36px]"
             >
-              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" /> : <Check className="w-3.5 h-3.5" />}
               <span>Create</span>
             </button>
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="btn-ghost px-2.5 border border-border text-text-muted hover:text-text-primary"
+              className="btn-ghost px-2.5 border border-border text-text-muted hover:text-text-primary min-h-[36px]"
             >
               <X className="w-4 h-4" />
             </button>
@@ -175,9 +184,25 @@ export default function SpacesPage() {
 
       {/* Spaces Grid */}
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="card border border-border bg-surface-1 shadow-subtle p-4 flex flex-col justify-between gap-3 animate-pulse motion-reduce:animate-none">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-control bg-surface-2" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3.5 w-24 bg-surface-2 rounded" />
+                  <div className="h-2.5 w-36 bg-surface-2 rounded" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2 border-t border-border mt-auto">
+                <div className="h-7 bg-surface-2 rounded-control flex-1" />
+                <div className="h-7 w-7 bg-surface-2 rounded-control" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : spaces.length === 0 ? (
-        <div className="text-center py-16 text-text-muted text-xs">No spaces created yet. Click "New Space" above to get started.</div>
+        <div className="text-center py-16 text-text-muted text-xs">No spaces created yet. Click “New Space” above to get started.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           <AnimatePresence>
@@ -250,13 +275,19 @@ export default function SpacesPage() {
       {/* Members Modal */}
       <AnimatePresence>
         {assignModal && (
-          <div className="fixed inset-0 bg-surface-overlay flex items-center justify-center z-50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assign-modal-title"
+            onClick={(e) => { if (e.target === e.currentTarget) setAssignModal(null); }}
+            className="fixed inset-0 bg-surface-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-popover p-5 rounded-card"
+              className="card w-full max-w-md border border-border-strong bg-surface-1 shadow-md p-5 rounded-card"
             >
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
@@ -264,14 +295,14 @@ export default function SpacesPage() {
                     <Users className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h2 className="font-semibold text-text-primary text-xs tracking-tight">{assignModal.name}</h2>
-                    <p className="text-[10px] text-text-muted">Manage Member Access</p>
+                    <h2 id="assign-modal-title" className="font-semibold text-text-primary text-xs tracking-tight">{assignModal.name}</h2>
+                    <p className="text-[11px] text-text-muted">Manage member access</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setAssignModal(null)}
-                  className="text-text-muted hover:text-text-primary p-1 rounded-control"
+                  className="text-text-muted hover:text-text-primary p-1 rounded-control min-h-[36px] min-w-[36px] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -284,7 +315,7 @@ export default function SpacesPage() {
                   value={selectedUser}
                   onChange={e => setSelectedUser(e.target.value)}
                 >
-                  <option value="">Select user to add to space...</option>
+                  <option value="">Select user to add to space…</option>
                   {users.filter(u => !spaceUsers.find(su => su.id === u.id)).map(u => (
                     <option key={u.id} value={u.id}>{u.email} ({u.role})</option>
                   ))}
