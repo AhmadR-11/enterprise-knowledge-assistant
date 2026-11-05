@@ -28,8 +28,8 @@ function StatCard({ icon: Icon, label, value }: {
     <motion.div variants={itemVariants} className="card card-hover">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-2xs font-semibold text-text-muted uppercase tracking-wider mb-1">{label}</p>
-          <p className="text-2xl font-bold text-text-primary font-mono tabular-nums tracking-tight">{value}</p>
+          <p className="text-2xs font-medium text-text-muted mb-1">{label}</p>
+          <p className="text-2xl font-bold text-text-primary tabular-nums tracking-tight">{value}</p>
         </div>
         <div className="w-9 h-9 rounded-control bg-surface-2 border border-border flex items-center justify-center text-text-muted shadow-subtle">
           <Icon className="w-4 h-4" />
@@ -91,9 +91,9 @@ export default function DashboardPage() {
     : [];
 
   const BAR_COLORS: Record<string, string> = {
-    READY: '#2DD4BF', // Accent
-    PROCESSING: '#FBBF24', // Warning
-    FAILED: '#F87171' // Danger
+    READY: 'var(--accent)',
+    PROCESSING: 'var(--warning)',
+    FAILED: 'var(--danger)'
   };
 
   return (
@@ -143,8 +143,8 @@ export default function DashboardPage() {
             <div className="h-60 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="status" stroke="#6B7280" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#6B7280" fontSize={11} allowDecimals={false} tickLine={false} />
+                  <XAxis dataKey="status" stroke="var(--text-muted)" fontSize={11} tickLine={false} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'var(--surface-1)',
@@ -153,11 +153,11 @@ export default function DashboardPage() {
                       color: 'var(--text-primary)',
                       fontSize: '12px'
                     }}
-                    cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }}
+                    cursor={{ fill: 'var(--surface-3)' }}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={BAR_COLORS[entry.status] || '#2DD4BF'} />
+                      <Cell key={`cell-${index}`} fill={BAR_COLORS[entry.status] || 'var(--accent)'} />
                     ))}
                   </Bar>
                 </BarChart>

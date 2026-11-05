@@ -152,7 +152,7 @@ export function CitationPanel({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 bg-surface-overlay"
           aria-hidden="true"
         />
 

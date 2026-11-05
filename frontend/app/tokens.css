@@ -1,0 +1,127 @@
+:root {
+  color-scheme: light;
+
+  /* Canvas & Surfaces (Console / Graphite & Teal - Light Mode) */
+  --bg: #F6F7F8;
+  --sidebar: #FBFBFC;
+  --surface-1: #FAFAFB;
+  --surface-2: #F1F2F4;
+  --surface-3: #E8EAED;
+  --surface-code: #ECEEF1;
+  --surface-overlay: rgba(10, 11, 13, 0.45);
+
+  /* Borders */
+  --border: rgba(10, 11, 13, 0.08);
+  --border-strong: rgba(10, 11, 13, 0.16);
+
+  /* Typography */
+  --text: #14161A;
+  --text-primary: #14161A;
+  --text-secondary: #4B5260;
+  --text-muted: #5F6672;
+
+  /* Accent (Teal / Console) */
+  --accent: #0F766E;
+  --accent-fill: #0F766E;
+  --text-on-accent: #FFFFFF;
+  --accent-text: #FFFFFF;
+  --accent-soft: rgba(15, 118, 110, 0.08);
+  --accent-border: rgba(15, 118, 110, 0.25);
+
+  /* Semantic Feedback */
+  --success: #15803D;
+  --success-soft: rgba(21, 128, 61, 0.10);
+  --success-border: rgba(21, 128, 61, 0.25);
+
+  --warning: #B45309;
+  --warning-soft: rgba(180, 83, 9, 0.10);
+  --warning-border: rgba(180, 83, 9, 0.25);
+
+  --danger: #B91C1C;
+  --danger-soft: rgba(185, 28, 28, 0.10);
+  --danger-border: rgba(185, 28, 28, 0.25);
+
+  --info: #1D4ED8;
+  --info-soft: rgba(29, 78, 216, 0.10);
+  --info-border: rgba(29, 78, 216, 0.25);
+
+  /* Radii */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-bubble: 18px;
+  --radius-composer: 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(10, 11, 13, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(10, 11, 13, 0.08);
+  --shadow-popover: 0 10px 25px -5px rgba(10, 11, 13, 0.12), 0 0 1px 1px rgba(10, 11, 13, 0.08);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+
+  /* Focus Ring */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Canvas & Surfaces (Console / Graphite & Teal - Dark Mode) */
+  --bg: #0A0B0D;
+  --sidebar: #0E1013;
+  --surface-1: #12141A;
+  --surface-2: #181B22;
+  --surface-3: #1F232C;
+  --surface-code: #0F1115;
+  --surface-overlay: rgba(0, 0, 0, 0.70);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Typography (WCAG AA compliant text-muted) */
+  --text: #EDEEF0;
+  --text-primary: #EDEEF0;
+  --text-secondary: #A1A6B0;
+  --text-muted: #949BA8;
+
+  /* Accent (Teal / Console) */
+  --accent: #2DD4BF;
+  --accent-fill: #14B8A6;
+  --text-on-accent: #04110F;
+  --accent-text: #04110F;
+  --accent-soft: rgba(45, 212, 191, 0.10);
+  --accent-border: rgba(45, 212, 191, 0.25);
+
+  /* Semantic Feedback */
+  --success: #4ADE80;
+  --success-soft: rgba(74, 222, 128, 0.10);
+  --success-border: rgba(74, 222, 128, 0.25);
+
+  --warning: #FBBF24;
+  --warning-soft: rgba(251, 191, 36, 0.10);
+  --warning-border: rgba(251, 191, 36, 0.25);
+
+  --danger: #F87171;
+  --danger-soft: rgba(248, 113, 113, 0.10);
+  --danger-border: rgba(248, 113, 113, 0.25);
+
+  --info: #60A5FA;
+  --info-soft: rgba(96, 165, 250, 0.10);
+  --info-border: rgba(96, 165, 250, 0.25);
+
+  /* Radii */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-bubble: 18px;
+  --radius-composer: 20px;
+
+  /* Shadows (Lightness & hairline elevation on dark) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.45);
+  --shadow-popover: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* Focus Ring */
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+

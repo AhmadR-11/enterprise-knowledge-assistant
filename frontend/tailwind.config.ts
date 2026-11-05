@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
@@ -10,6 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        background: 'var(--bg)',
         bg: 'var(--bg)',
         sidebar: 'var(--sidebar)',
         surface: {
@@ -17,27 +18,49 @@ const config: Config = {
           2: 'var(--surface-2)',
           3: 'var(--surface-3)',
           code: 'var(--surface-code)',
+          overlay: 'var(--surface-overlay)',
         },
         border: {
           DEFAULT: 'var(--border)',
           strong: 'var(--border-strong)',
         },
+        foreground: 'var(--text)',
         text: {
+          DEFAULT: 'var(--text)',
           primary: 'var(--text-primary)',
           secondary: 'var(--text-secondary)',
           muted: 'var(--text-muted)',
         },
+        muted: 'var(--text-muted)',
         accent: {
           DEFAULT: 'var(--accent)',
           fill: 'var(--accent-fill)',
-          text: 'var(--accent-text)',
+          text: 'var(--text-on-accent)',
+          'on-accent': 'var(--text-on-accent)',
           soft: 'var(--accent-soft)',
           border: 'var(--accent-border)',
         },
-        success: 'var(--success)',
-        warning: 'var(--warning)',
-        danger: 'var(--danger)',
-        info: 'var(--info)',
+        'on-accent': 'var(--text-on-accent)',
+        success: {
+          DEFAULT: 'var(--success)',
+          soft: 'var(--success-soft)',
+          border: 'var(--success-border)',
+        },
+        warning: {
+          DEFAULT: 'var(--warning)',
+          soft: 'var(--warning-soft)',
+          border: 'var(--warning-border)',
+        },
+        danger: {
+          DEFAULT: 'var(--danger)',
+          soft: 'var(--danger-soft)',
+          border: 'var(--danger-border)',
+        },
+        info: {
+          DEFAULT: 'var(--info)',
+          soft: 'var(--info-soft)',
+          border: 'var(--info-border)',
+        },
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
@@ -54,16 +77,18 @@ const config: Config = {
         '2xl': ['28px', { lineHeight: '1.2' }],
       },
       borderRadius: {
-        control: '8px',
-        card: '12px',
-        bubble: '18px',
-        composer: '20px',
+        control: 'var(--radius-control)',
+        card: 'var(--radius-card)',
+        bubble: 'var(--radius-bubble)',
+        composer: 'var(--radius-composer)',
       },
       boxShadow: {
-        subtle: '0 1px 2px 0 rgba(0, 0, 0, 0.35)',
-        card: '0 4px 12px -2px rgba(0, 0, 0, 0.45)',
-        popover: '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.05)',
-        insetHighlight: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        subtle: 'var(--shadow-sm)',
+        card: 'var(--shadow-md)',
+        popover: 'var(--shadow-popover)',
+        insetHighlight: 'var(--shadow-inset)',
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out',
@@ -87,6 +112,6 @@ const config: Config = {
     },
   },
   plugins: [],
-}
+};
 
-export default config
+export default config;
